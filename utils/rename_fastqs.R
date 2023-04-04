@@ -6,8 +6,8 @@ library("tidyverse")
 library("glue")
 
 # folders
-original_dir = "/proj/snic2020-6-3/LINXUAN/sciTIP_sc_analysis/fastqs_single_cell_row_B/"
-new_fastq_dir = "/proj/snic2020-6-3/SZABOLCS/sciTIP-Seq/data/fastq/deindexed_fastq/row_B/"
+original_dir = "/proj/snic2020-6-3/LINXUAN/sciTIP_sc_analysis/fastqs_single_cell_row_H/"
+new_fastq_dir = "/proj/snic2020-6-3/SZABOLCS/sciTIP-Seq/data/fastq/deindexed_fastq/row_H/"
 
 # copy into the working fastq directory
 system(glue("mkdir {new_fastq_dir}"))

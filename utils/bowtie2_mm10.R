@@ -8,7 +8,7 @@ library("glue")
 set.cores=20
 
 # add folder containing FASTQ files
-fastqs = "/proj/snic2020-6-3/SZABOLCS/sciTIP-Seq/data/fastq/deindexed_fastq/row_A"
+fastqs = "/proj/snic2020-6-3/SZABOLCS/sciTIP-Seq/data/fastq/deindexed_fastq/row_H"
 
 # bowtie2 index
 btindex.path="/proj/snic2020-6-3/SZABOLCS/sciTIP-Seq/data/mm10_bowtie_index/mm10"

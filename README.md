@@ -13,6 +13,11 @@ Additional codes: [Bartlett et al. github repo](https://github.com/dbart1807/TIP
 4. T7 deduplications
 5. computing read count matrix (bedtools) 
 
+You can run the whole pipeline by one script called _all.R_
+Its parameters:
+--input (-i): absolute path with the folder where the deindexed fastqs can be found
+--suffix (-s): string indicating the folder where the intermediate files can be found
+
 Important folders at Uppmax:
 
   * Linxuan folder:
@@ -20,3 +25,5 @@ Important folders at Uppmax:
 
   * Working directory:
   _/proj/snic2020-6-3/SZABOLCS/sciTIP-Seq/utils_
+  
+  

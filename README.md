@@ -19,7 +19,7 @@ Its parameters:
 
 --input (-i): absolute path with the folder where the deindexed fastqs can be found
 
---suffix (-s): string indicating the folder where the intermediate files can be found
+--workdir (-w): name of existing working directory where all the folders and results will be created
 
 Important folders at Uppmax:
 

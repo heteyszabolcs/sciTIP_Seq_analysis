@@ -13,21 +13,22 @@ parser = ArgumentParser()
 
 parser$add_argument("-i", "--input_dir", type = "character",
                     help = "input directory with the fastq files")
-parser$add_argument("-s", "--suffix", type = "character",
-                    help = "add suffix string to the folders")
+parser$add_argument("-w", "--workdir", type = "character",
+                    help = "name of working dir")
 args = parser$parse_args()
 
-# add folder containing FASTQ files
+# add folder containing deindexed FASTQ files
 fastqs = args$input_dir
-# add suffix to indicate actual directories
-suffix = args$suffix
+# add working directory
+workdir = args$suffix
 
 # bowtie2 index
 btindex.path = "/proj/snic2020-6-3/SZABOLCS/sciTIP-Seq/data/mm10_bowtie_index/mm10"
 chromsize.path = "/proj/snic2020-6-3/SZABOLCS/sciTIP-Seq/data/mm10.chrom.sizes.txt"
 
-system(paste0("mkdir -p ../data/mapped_mm10_", suffix))
-system(paste0("mkdir -p ../data/stats_mapping_", suffix))
+system(paste0("mkdir -p ", workdir))
+system(paste0("mkdir -p ", workdir, "/mapped_mm10"))
+system(paste0("mkdir -p ", workdir, "/stats_mapping"))
 
 fq = unique(strsplit(
   list.files(
@@ -55,8 +56,8 @@ for (i in 1:length(fq)) {
   #system(glue("bowtie2 --threads 8 --very-sensitive-local --minins 10 --maxins 700 -x {btindex.path} -1 {fq[i]}_R1_001.fastq.gz -2 {fq[i]}_R2_001.fastq.gz -S {fq[i]}_mm10.sam"))
   #system("for i in *_R1_mm10.sam; do mv $i ${i%_R1_mm10.sam}.mm10.sam; done")
   #system("for i in *_R1_mm10.sam.log; do mv $i ${i%_R1_mm10.sam.log}.mm10.sam.log; done")
-  system(paste0("mv *mm10.sam ../data/mapped_mm10_", suffix))
-  system(paste0("mv *sam.log ../data/stats_mapping_", suffix))
+  system(paste0("mv *mm10.sam ", workdir, "/mapped_mm10"))
+  system(paste0("mv *sam.log ", workdir, "/stats_mapping"))
 }
 
 print("bowtie2 mapping complete!")
@@ -72,7 +73,7 @@ print("bowtie2 mapping complete!")
 library("glue")
 library("travis")
 
-setwd(paste0("../data/mapped_mm10_", suffix))
+setwd(paste0(workdir, "/mapped_mm10"))
 set.cores = 20
 
 ##:: filter out <q10 reads and convert to name sorted BAM
@@ -130,8 +131,8 @@ Beds = bamToBed(
 
 print("BAM to BED conversion complete!")
 
-system(paste0("mkdir -p ../beds_rmdup_", suffix))
-system(paste0("for i in *nsort.bed; do mv $i ../beds_rmdup_", suffix, "/${i%nsort.bed}bed; done"))
+system(paste0("mkdir -p ", workdir, "/beds_rmdup"))
+system(paste0("for i in *nsort.bed; do mv $i ../beds_rmdup", "/${i%nsort.bed}bed; done"))
 
 print("samtools deduplication complete!")
 
@@ -149,7 +150,7 @@ print("samtools deduplication complete!")
 library("glue")
 library("travis")
 
-setwd(paste0("/proj/snic2020-6-3/SZABOLCS/sciTIP-Seq/data/beds_rmdup_", suffix))
+setwd(paste0(workdir, "/beds_rmdup"))
 
 system("find . -type f -size 0 -delete") ## remove cells with 0 bytes to avoid error below
 allBEDs = list.files(pattern = ".bed")
@@ -174,8 +175,8 @@ for (f in allBEDs) {
 }
 
 system("for i in *bed_rmT7dup.bed; do mv $i ${i%bed_rmT7dup.bed}rmT7dup.bed; done")
-system(paste0("mkdir -p ../beds_rmT7dup_", suffix))
-system(paste0("mv *.rmT7dup.bed ../beds_rmT7dup_", suffix, "/"))
+system(paste0("mkdir -p ", workdir, "/beds_rmT7dup"))
+system(paste0("mv *.rmT7dup.bed ../beds_rmT7dup/"))
 
 print("remove T7 duplications complete!")
 
@@ -193,14 +194,12 @@ bin_size = 5000
 step_size = 5000
 scalar = 1
 
-chromsize_path.mm10 = "/proj/snic2020-6-3/SZABOLCS/sciTIP-Seq/data/mm10.chrom.sizes.txt"
-
-setwd(paste0("/proj/snic2020-6-3/SZABOLCS/sciTIP-Seq/data/beds_rmdup_", suffix)) # path to beds
+setwd(paste0(workdir, "/beds_rmdup")) # path to beds
 allBEDs <- list.files(pattern = "fixmkdup.bed")
 
 windows <-
   bedtoolsMakeWindows(
-    bedfiles = chromsize_path.mm10,
+    bedfiles = chromsize.path,
     windowsize = bin_size,
     stepsize = step_size,
     threads = set.cores,
@@ -216,13 +215,11 @@ system(cov)
 
 ###:: bigwig conversion (optional, for IGV)  # may need to run in command line...
 bg2bw = paste0("for j in *.bg; do bedGraphToBigWig $j ",
-               chromsize_path.mm10,
+               chromsize.path,
                " ${j%bg}bw; done")
 system(bg2bw)
-
-system(paste0("mkdir -p ../coverage_win5k_", suffix))
-system(paste0("mv *.win5k.bg ../coverage_win5k_", suffix))
-#
+system(paste0("mkdir -p ", workdir, "/coverage_win5k"))
+system(paste0("mv *.win5k.bg ", workdir, "/coverage_win5k"))
 # system("mkdir -p ../coverage_win5k/win5k_bigwigs")
 # system("mv *.win5k.bw ../coverage_win5k/win5k_bigwigs")
 
@@ -230,7 +227,7 @@ system(paste0("mv *.win5k.bg ../coverage_win5k_", suffix))
 ########--- build single-cell coverage matrix --- #########
 ###########################################################
 set.cores = 20
-setwd(paste0("/proj/snic2020-6-3/SZABOLCS/sciTIP-Seq/data/coverage_win5k_", suffix))
+setwd(paste0(workdir, "/coverage_win5k"))
 allBgs <- list.files(pattern = "win5k.bg")
 coords = read.tsv(allBgs[1])
 

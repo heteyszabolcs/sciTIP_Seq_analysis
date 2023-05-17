@@ -24,6 +24,8 @@ result_folder = "../results/Seurat/"
 # 
 # # export Rds
 # saveRDS(seurat, "../data/count_tables/20230510_read_counts-cells_above_1000reads.Rds")
+
+# load Seurat object
 seurat = readRDS(file = "../data/count_tables/20230510_read_counts-cells_above_1000reads.Rds")
 
 

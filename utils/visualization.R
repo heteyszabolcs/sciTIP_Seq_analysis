@@ -1,67 +1,31 @@
 library("data.table")
 library("tidyverse")
-library("ggplot")
+library("ggplot2")
 library("glue")
 library("ggpubr")
 
-counts = "../data/count_tables/2023apr_scTIP_read_sums.tsv"
+options(scipen=10000)
+
+counts = "../data/count_tables/20230510_scTIP_read_sums.tsv"
 meta = "../data/scTIP_seq_wells_230305.txt"
 
 ct = fread(glue("{counts}"))
 ct = ct %>% mutate(pos = unname(sapply(ct$well, function(x) strsplit(x, split = "_")[[1]][2])))
+ct = ct %>% mutate(sample_id = as.numeric(unname(sapply(ct$well, function(x) strsplit(x, split = "_")[[1]][3])))) %>% 
+  mutate(sample = case_when((sample_id >= 1 & sample_id <= 96) ~ "EpiLC_6h",
+            (sample_id > 96 & sample_id <= 192) ~ "EpiLC_12h",
+            (sample_id > 192 & sample_id <= 288) ~ "EpiLC_24h",
+            (sample_id > 288 & sample_id <= 384) ~ "EpiLC_48h", 
+            TRUE ~ "-"))
 
-meta = fread(meta)
-meta = meta %>% separate(well, "_", into = c("sample", "pos")) %>% mutate(sample = ifelse(sample == "H33", "H3.3", sample))
+summary(ct$overal_read_count)
 
-ct_meta = ct %>% inner_join(., meta, by = "pos")
-
-ggplot(ct_meta, aes(x = sample, y = overal_read_count, fill = sample)) +
-  geom_boxplot(color = "black") +
-  scale_fill_brewer(palette = "Reds") +
-  ylim(0, 100) +
+total_rc_histo = ggplot(ct, aes(x = overal_read_count)) +
+  geom_histogram(position = "identity", fill = "#fc9272") +
   labs(
     title = "",
     x = "",
-    y = "total read count / well",
-    fill = ""
-  ) +
-  theme_classic() +
-  theme(
-    text = element_text(size = 20),
-    plot.title = element_text(size = 10),
-    axis.text.x = element_text(size = 20, color = "black"),
-    axis.text.y = element_text(size = 20, color = "black")
-  ) +
-  stat_compare_means(label.y = 75, label.x = 1.25, size = 6) 
-  # stat_compare_means(label = "p.signif", method = "t.test",
-  #                    ref.group = ".all.", label.y = 50)
-
-
-ggsave(
-  "../results/total_read_counts_per_well.png",
-  plot = last_plot(),
-  height = 7,
-  width = 7,
-  dpi = 500
-)
-
-ggsave(
-  "../results/total_read_counts_per_well.pdf",
-  plot = last_plot(),
-  height = 7,
-  width = 7
-)
-
-above_100 = ct_meta %>% mutate(above_100 = ifelse(100 < overal_read_count, "> 100", "< 100")) %>% 
-  group_by(above_100) %>% count() %>% 
-  ggplot(data = ., aes(x = above_100, y = n)) +
-  geom_bar(stat = "identity", fill = "steelblue")+
-  geom_text(aes(label = n), vjust=1.6, color="white", size=7.5) +
-  labs(
-    title = "",
-    x = "read count",
-    y = "# of cells",
-    fill = ""
+    y = "total read counts"
   ) +
   theme_classic() +
   theme(
@@ -70,19 +34,73 @@ above_100 = ct_meta %>% mutate(above_100 = ifelse(100 < overal_read_count, "> 10
     axis.text.x = element_text(size = 20, color = "black"),
     axis.text.y = element_text(size = 20, color = "black")
   )
-above_100
+total_rc_histo
+
+sample_histo = ggplot(ct, aes(x = overal_read_count, fill = sample)) +
+  geom_histogram(position = "identity", alpha=0.5) +
+  scale_fill_brewer(palette = "Set3") +
+  labs(
+    title = "",
+    x = "",
+    y = "total read counts"
+  ) +
+  theme_classic() +
+  theme(
+    text = element_text(size = 20),
+    plot.title = element_text(size = 10),
+    axis.text.x = element_text(size = 20, color = "black"),
+    axis.text.y = element_text(size = 20, color = "black")
+  )
+sample_histo
 
 ggsave(
-  "../results/above_100_bar.png",
-  plot = above_100,
-  height = 7,
-  width = 7,
+  "../results/20230510_total_rc_samples_histogram.png",
+  plot = last_plot(),
+  height = 6,
+  width = 6,
   dpi = 500
 )
 
 ggsave(
-  "../results/above_100_bar.pdf",
-  plot = above_100,
-  height = 7,
-  width = 7
+  "../results/20230510_total_rc_samples_histogram.pdf",
+  plot = last_plot(),
+  height = 6,
+  width = 6
 )
+
+order = factor(ct$sample, levels = c("EpiLC_6h", "EpiLC_12h", "EpiLC_24h", "EpiLC_48h"))
+sample_box = ggplot(ct, aes(x = order, y = overal_read_count, fill = sample)) +
+  geom_boxplot(color = "black") +
+  scale_fill_brewer(palette = "Set3") +
+  labs(
+    title = "",
+    x = "",
+    y = "total read counts",
+    fill = ""
+  ) +
+  guides(fill = "none") +
+  theme_classic() +
+  theme(
+    text = element_text(size = 20),
+    plot.title = element_text(size = 10),
+    axis.text.x = element_text(size = 20, color = "black", angle = 45, vjust = 1, hjust = 1),
+    axis.text.y = element_text(size = 20, color = "black")
+  )
+sample_box
+
+ggsave(
+  "../results/20230510_total_read_count_box.png",
+  plot = last_plot(),
+  height = 6,
+  width = 6,
+  dpi = 500
+)
+
+ggsave(
+  "../results/20230510_total_read_count_box.pdf",
+  plot = last_plot(),
+  height = 6,
+  width = 6
+)
+
+

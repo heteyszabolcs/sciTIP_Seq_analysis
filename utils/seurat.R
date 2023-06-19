@@ -126,7 +126,6 @@ nCount_violin_samples = VlnPlot(seurat, group.by = "sample", features = "nCount_
   NoLegend()
 nCount_violin_samples
 
-
 dim_samples = DimPlot(object = seurat, label = FALSE, pt.size = 2, group.by = "sample") + 
   scale_color_brewer(palette = "Set3") +
   xlim(-10, 10) + 

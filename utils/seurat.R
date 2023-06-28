@@ -10,11 +10,13 @@ suppressPackageStartupMessages({
   library("ggpubr")
 })
 
+set.seed(42)
+
 # result folder
 result_folder = "../results/Seurat/"
 
 # create Seurat object
-# raw = fread(file = "../data/count_tables/20230510_read_counts-cells_above_1000reads.tsv")
+# raw = fread(file = "../data/20230316_H3.2/count_tables/20230316_H3.2_read_counts-cells_above_1000reads.tsv")
 # rows = raw$range
 # raw = raw %>% dplyr::select(-range)
 # raw_sparse = as(as.matrix(raw), "sparseMatrix")
@@ -23,11 +25,12 @@ result_folder = "../results/Seurat/"
 # seurat = CreateSeuratObject(counts = raw_sparse, project = "sciTIP_Seq")
 # 
 # # export Rds
-# saveRDS(seurat, "../data/count_tables/20230510_read_counts-cells_above_1000reads.Rds")
+# saveRDS(seurat, "../data/20230316_H3.2/count_tables/20230316_H3.2_read_counts-cells_above_1000reads.Rds")
 
 # load Seurat object
 seurat = readRDS(file = "../data/count_tables/20230510_read_counts-cells_above_1000reads.Rds")
 
+x = as.matrix(seurat@assays$RNA@counts)[1:10, 1:10]
 
 # normalization
 seurat = RunTFIDF(seurat)
@@ -125,6 +128,7 @@ nCount_violin_samples = VlnPlot(seurat, group.by = "sample", features = "nCount_
   ) +
   NoLegend()
 nCount_violin_samples
+
 
 dim_samples = DimPlot(object = seurat, label = FALSE, pt.size = 2, group.by = "sample") + 
   scale_color_brewer(palette = "Set3") +

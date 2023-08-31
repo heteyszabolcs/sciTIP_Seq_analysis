@@ -56,6 +56,9 @@ monotonic_decreas = function(signal) {
 
 increasing_H33 = read_counts[which(apply(mat, MARGIN = 1, monotonic_incr)),]
 increasing_H33 = increasing_H33 %>% mutate(diff = EpiLC_48h_pseudobulk_RPGC - EpiLC_6h_pseudobulk_RPGC)
+
+write_tsv(increasing_H33, "../results/EpiLC_H3.3_monotonic_increasing.tsv")
+
 increasing_H33_long = increasing_H33 %>% pivot_longer(., cols = "EpiLC_6h_pseudobulk_RPGC":"EpiLC_48h_pseudobulk_RPGC",
                                                       values_to = "read_count", names_to = "sample")
 
@@ -119,6 +122,9 @@ boxplot1 = ggplot() + geom_boxplot(
 
 decreasing_H33 = read_counts[which(apply(mat, MARGIN = 1, monotonic_decreas)),]
 decreasing_H33 = decreasing_H33 %>% mutate(diff = EpiLC_6h_pseudobulk_RPGC - EpiLC_48h_pseudobulk_RPGC)
+
+write_tsv(decreasing_H33, "../results/EpiLC_H3.3_monotonic_decreasing.tsv")
+
 decreasing_H33_long = decreasing_H33 %>% pivot_longer(., cols = "EpiLC_6h_pseudobulk_RPGC":"EpiLC_48h_pseudobulk_RPGC",
                                                       values_to = "read_count", names_to = "sample")
 

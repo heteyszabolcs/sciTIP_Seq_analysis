@@ -73,23 +73,43 @@ late = GRanges(
 )
 
 # find overlaps with ranges from replication time analysis
+## early regions
 early_ol = findOverlaps(h32, early, type = "any", ignore.strand = FALSE)
 early_rows = as.tibble(early)
 early_rows = early_rows %>% mutate(range = paste(seqnames, start, end, sep = "_")) %>% pull(range)
 early_ol = as.data.frame(early_ol)
 early_rows = early_rows[unique(early_ol$subjectHits)]
+
+# early replicating regions in H3.2 dataset
+early_h32 = as_tibble(h32[unique(early_ol$queryHits)])
+write_tsv(early_h32, "../data/bed/early_H3.2_regions.bed", col_names = FALSE)
+early_h32 = early_h32 %>% mutate(range = paste(seqnames, start, end, sep = "-")) %>% pull(range)
 early_regions = raw[unique(early_ol$subjectHits),]
+
+## mid regions
 mid_ol = findOverlaps(h32, mid, type = "any", ignore.strand = FALSE)
 mid_rows = as.tibble(mid)
 mid_rows = mid_rows %>% mutate(range = paste(seqnames, start, end, sep = "_")) %>% pull(range)
 mid_ol = as.data.frame(mid_ol)
 mid_rows = mid_rows[unique(mid_ol$subjectHits)]
+
+# early replicating regions in H3.2 dataset
+mid_h32 = as_tibble(h32[unique(mid_ol$queryHits)])
+write_tsv(mid_h32, "../data/bed/mid_H3.2_regions.bed", col_names = FALSE)
+mid_h32 = mid_h32 %>% mutate(range = paste(seqnames, start, end, sep = "-")) %>% pull(range)
 mid_regions = raw[unique(mid_ol$subjectHits),]
+
+## late regions
 late_ol = findOverlaps(h32, late, type = "any", ignore.strand = FALSE)
 late_rows = as.tibble(late)
 late_rows = late_rows %>% mutate(range = paste(seqnames, start, end, sep = "_")) %>% pull(range)
 late_ol = as.data.frame(late_ol)
 late_rows = late_rows[unique(late_ol$subjectHits)]
+
+# late replicating regions in H3.2 dataset
+late_h32 = as_tibble(h32[unique(late_ol$queryHits)])
+write_tsv(late_h32, "../data/bed/late_H3.2_regions.bed", col_names = FALSE)
+late_h32 = late_h32 %>% mutate(range = paste(seqnames, start, end, sep = "-")) %>% pull(range)
 late_regions = raw[unique(late_ol$subjectHits),]
 
 early_sparse = as(as.matrix(early_regions), "sparseMatrix")

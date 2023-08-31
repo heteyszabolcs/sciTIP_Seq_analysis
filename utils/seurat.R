@@ -8,6 +8,7 @@ suppressPackageStartupMessages({
   library("GenomicFeatures")
   library("data.table")
   library("ggpubr")
+  library("SnapATAC")
 })
 
 set.seed(42)
@@ -28,9 +29,7 @@ result_folder = "../results/Seurat/"
 # saveRDS(seurat, "../data/20230316_H3.2/count_tables/20230316_H3.2_read_counts-cells_above_1000reads.Rds")
 
 # load Seurat object
-seurat = readRDS(file = "../data/count_tables/20230510_read_counts-cells_above_1000reads.Rds")
-
-x = as.matrix(seurat@assays$RNA@counts)[1:10, 1:10]
+seurat = readRDS(file = "../data/20230316_H3.2/count_tables/20230316_H3.2_read_counts-cells_above_1000reads.Rds")
 
 # normalization
 seurat = RunTFIDF(seurat)

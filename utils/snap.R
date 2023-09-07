@@ -69,7 +69,6 @@ snap = snap[idx, ]
 snap = makeBinary(snap, mat = "bmat")
 
 # scRepli-seq integration
-# mid S bedgraph (test)
 screpliseq_mids = list.files("../data/GSE108556_scRepli-Seq/midS_phase/", patter = "binary.bedGraph", 
                              full.names = TRUE)
 screpliseq_earlys = list.files("../data/GSE108556_scRepli-Seq/early_25percentile_S_phase/", patter = "binary.bedGraph", 

@@ -6,40 +6,44 @@
 
 library(travis)
 
-# set.cores=20
-# build = "mm10"
-# bin_size=5000
-# step_size=5000
-# scalar=1
-# 
-# chromsize_path.mm10 = "/proj/snic2020-6-3/SZABOLCS/sciTIP-Seq/data/mm10.chrom.sizes.txt"
-# 
-# setwd("../data/beds_rmdup/")  # path to beds
-# allBEDs <- list.files(pattern="fixmkdup.bed")
-# 
-# windows <- bedtoolsMakeWindows(bedfiles = chromsize_path.mm10, windowsize=bin_size,stepsize=step_size, threads = set.cores, genome=TRUE,
-#                                outnames = paste0("~/bin/",build,"_win",bin_size,".step",step_size,".bed"))
-# 
-# system("for i in *bed; do bedSort $i $i; done")
-# cov=paste0("for i in *.bed; do bedtools coverage -counts -a ",windows," -b $i > ${i%bed}win5k.bg; done")
-# system(cov)
-# 
-# ###:: bigwig conversion (optional, for IGV)  # may need to run in command line...
-# bg2bw=paste0("for j in *.bg; do bedGraphToBigWig $j ",chromsize_path.mm10," ${j%bg}bw; done")
-# system(bg2bw) 
-# 
-# system("mkdir -p ../coverage_win5k")
-# system("mv *.win5k.bg ../coverage_win5k")
-# 
-# system("mkdir -p ../coverage_win5k/win5k_bigwigs")
-# system("mv *.win5k.bw ../coverage_win5k/win5k_bigwigs")
+set.cores=20
+build = "mm10"
+bin_size=80000
+step_size=80000
+scalar=1
+
+chromsize_path.mm10 = "/proj/snic2020-6-3/SZABOLCS/sciTIP-Seq/data/mm10.chrom.sizes.txt"
+
+setwd("/proj/snic2020-6-3/SZABOLCS/sciTIP-Seq/data/20230316_H3.2/beds_rmdup/")  # path to beds
+allBEDs <- list.files(pattern="fixmkdup.bed")
+
+windows <- bedtoolsMakeWindows(bedfiles = chromsize_path.mm10, 
+                               windowsize=bin_size,
+                               stepsize=step_size,
+                               threads = set.cores, 
+                               genome=TRUE,
+                               outnames = paste0("~/bin/",build,"_win",bin_size,".step",step_size,".bed"))
+
+system("for i in *bed; do bedSort $i $i; done")
+cov=paste0("for i in *.bed; do bedtools coverage -counts -a ",windows," -b $i > ${i%bed}win80k_mm10.bg; done")
+system(cov)
+
+###:: bigwig conversion (optional, for IGV)  # may need to run in command line...
+bg2bw=paste0("for j in *.bg; do bedGraphToBigWig $j ",chromsize_path.mm10," ${j%bg}bw; done")
+system(bg2bw)
+
+system("mkdir -p ../coverage_win80k_mm10")
+system("mv *.win80k_mm10.bg ../coverage_win80k_mm10")
+
+system("mkdir -p ../coverage_win80k_mm10/win80k_mm10_bigwigs")
+system("mv *.win80k_mm10.bw ../coverage_win80k_mm10/win80k_mm10_bigwigs")
 
 ###########################################################
 ########--- build single-cell coverage matrix --- #########
 ###########################################################
 set.cores = 20
-setwd("/proj/snic2020-6-3/SZABOLCS/sciTIP-Seq/data/coverage_win5k/") 
-allBgs <- list.files(pattern="win5k.bg")
+setwd("/proj/snic2020-6-3/SZABOLCS/sciTIP-Seq/data/20230316_H3.2/coverage_win80k_mm10/") 
+allBgs <- list.files(pattern="win80k_mm10.bg")
 coords = read.tsv(allBgs[1])
 
 chunk_length = 100

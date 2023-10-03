@@ -16,7 +16,7 @@ set.seed(42)
 result_folder = "../results/Seurat/"
 
 # create Seurat object
-# raw = fread(file = "../data/20230316_H3.2/count_tables/20230316_H3.2_read_counts-cells_above_1000reads_5k.tsv")
+# raw = fread(file = "../data/20230316_H3.2/count_tables/20230316_H3.2_read_counts-cells_above_1000reads_80k_bins.tsv")
 # rows = raw$range
 # raw = raw %>% dplyr::select(-range)
 # raw_sparse = as(as.matrix(raw), "sparseMatrix")
@@ -24,14 +24,13 @@ result_folder = "../results/Seurat/"
 # rm(raw)
 # seurat = CreateSeuratObject(counts = raw_sparse, project = "sciTIP_Seq")
 # seurat = RenameAssays(object = seurat, RNA = 'sciTIP_Seq_H3.2')
-# 
-# # export Rds
-# saveRDS(seurat, "../data/20230316_H3.2/count_tables/20230316_H3.2_read_counts-cells_above_1000reads.Rds")
+
+# export Rds
+#saveRDS(seurat, "../data/20230316_H3.2/count_tables/20230316_H3.2_read_counts-cells_above_1000reads_80k_bins.Rds")
 
 # load Seurat object
-seurat = readRDS(file = "../data/20230316_H3.2/count_tables/20230316_H3.2_read_counts-cells_above_1000reads_5k.Rds")
+seurat = readRDS(file = "../data/20230316_H3.2/count_tables/20230316_H3.2_read_counts-cells_above_1000reads_80k_bins.Rds")
 dim(seurat@assays$sciTIP_Seq_H3.2@counts)
-rownames(seurat@assays$sciTIP_Seq_H3.2@counts)
 
 # normalization
 seurat = RunTFIDF(seurat)
@@ -52,16 +51,16 @@ seurat = FindClusters(object = seurat,
                          resolution = 0.5,
                          algorithm = 1)
 
-saveRDS(seurat, file = "../data/20230316_H3.2/count_tables/20230316_H3.2_read_counts-cells_above_1000reads_5k.Rds")
+saveRDS(seurat, file = "../data/20230316_H3.2/count_tables/20230316_H3.2_read_counts-cells_above_1000reads_80k_bins.Rds")
 
 # quality plots
 nCount_violin_clusters = VlnPlot(seurat, group.by = "seurat_clusters", features = "nCount_RNA", pt.size = 0.1) +
   scale_fill_brewer(palette = "Set3") +
-  ggtitle("nCount (5 kb bins)") +
+  ggtitle("nCount (80 kb)") +
   xlab("cluster") + 
   ylab("read count") +
   ylim(0, 300000) +
-  scale_y_continuous(breaks = seq(0, 300000, 50000)) +
+  scale_y_continuous(breaks = seq(0, 300000, 100000)) +
   theme(
     text = element_text(size = 25),
     plot.title = element_text(size = 20),
@@ -72,7 +71,7 @@ nCount_violin_clusters = VlnPlot(seurat, group.by = "seurat_clusters", features 
 nCount_violin_clusters
 
 ggsave(
-  glue("{result_folder}Seurat_H3.2_sciTIP_0316_5k-quality_plots.png"),
+  glue("{result_folder}Seurat_H3.2_sciTIP_0316_80k-quality_plots.png"),
   plot = last_plot(),
   width = 10,
   height = 10,
@@ -80,7 +79,7 @@ ggsave(
 )
 
 ggsave(
-  glue("{result_folder}Seurat_H3.2_sciTIP_0316_5k-quality_plots.pdf"),
+  glue("{result_folder}Seurat_H3.2_sciTIP_0316_80k-quality_plots.pdf"),
   plot = last_plot(),
   width = 10,
   height = 10,
@@ -91,7 +90,7 @@ dim = DimPlot(object = seurat, label = FALSE, pt.size = 2, label.size = 7) +
   scale_color_brewer(palette = "Set3") +
   xlim(-10, 10) + 
   ylim(-10, 10) + 
-  ggtitle("H3.2 sciTIP-Seq") +
+  ggtitle("H3.2 sciTIP-Seq (80 kb bins)") +
   theme(
     text = element_text(size = 25),
     plot.title = element_text(size = 20),
@@ -106,12 +105,12 @@ for(cluster in unique(meta$seurat_clusters)) {
   df = df %>% mutate(id = rownames(df)) %>% separate(id, sep = ".fastq", into = "id") %>% 
     dplyr::select(id)
   df = as_tibble(df)
-  write_tsv(df, glue("../results/Seurat/H3.2_res0.5_cluster{as.character(cluster)}_ids.tsv"),
+  write_tsv(df, glue("../results/Seurat/H3.2_80k_res0.5_cluster{as.character(cluster)}_ids.tsv"),
             col_names = FALSE)
 }
 
 ggsave(
-  glue("{result_folder}Seurat_H3.2_sciTIP_0316_5k_UMAP.png"),
+  glue("{result_folder}Seurat_H3.2_sciTIP_0316_80k_UMAP.png"),
   plot = dim,
   width = 10,
   height = 10,
@@ -119,7 +118,7 @@ ggsave(
 )
 
 ggsave(
-  glue("{result_folder}Seurat_H3.2_sciTIP_0316_5k_UMAP.pdf"),
+  glue("{result_folder}Seurat_H3.2_sciTIP_0316_80k_UMAP.pdf"),
   plot = dim,
   width = 10,
   height = 10,
@@ -133,24 +132,9 @@ summary = marker_analysis %>%
   dplyr::filter(p_val_adj < 0.05) %>% 
   group_by(cluster) %>% count()
 
-write_tsv(marker_analysis, glue("{result_folder}Seurat_H3.2_sciTIP_5k_Marker_analysis.tsv"))
+write_tsv(marker_analysis, glue("{result_folder}Seurat_H3.2_sciTIP_80k_Marker_analysis.tsv"))
 
-# example
-# cluster 1 - H3.2 marker region
-FeaturePlot(seurat, features = "chr15-75085000-75090000")
 
-ggsave(
-  glue("{result_folder}Seurat_H3.2_sciTIP_UMAP_cluster1_chr15-75085000-75090000.pdf"),
-  plot = last_plot(),
-  width = 4,
-  height = 4
-)
 
-FeaturePlot(seurat, features = "chr14-19415000-19420000")
 
-ggsave(
-  glue("{result_folder}Seurat_H3.2_sciTIP_UMAP_cluster1_chr14-19415000-19420000.pdf"),
-  plot = last_plot(),
-  width = 4,
-  height = 4
-)
+

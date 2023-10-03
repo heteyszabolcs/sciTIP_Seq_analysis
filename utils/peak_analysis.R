@@ -98,11 +98,11 @@ increasing_H33_long = increasing_H33_long %>%
   mutate(across('sample', str_replace, 'EpiLC_24h_pseudobulk_RPGC', '24h')) %>%
   mutate(across('sample', str_replace, 'EpiLC_48h_pseudobulk_RPGC', '48h'))
 
-sample_order = factor(increasing_H33_long$sample, levels = c("6h", "12h", "24h", "48h"))
+sample_order_boxplot1 = factor(increasing_H33_long$sample, levels = c("6h", "12h", "24h", "48h"))
 
 boxplot1 = ggplot() + geom_boxplot(
-  data = decreasing_H33_long,
-  aes(x = sample_order, y = read_count),
+  data = increasing_H33_long,
+  aes(x = sample_order_boxplot1, y = read_count),
   color = "#9ecae1"
 ) +
   labs(
@@ -164,11 +164,11 @@ decreasing_H33_long = decreasing_H33_long %>%
   mutate(across('sample', str_replace, 'EpiLC_24h_pseudobulk_RPGC', '24h')) %>%
   mutate(across('sample', str_replace, 'EpiLC_48h_pseudobulk_RPGC', '48h'))
   
-sample_order = factor(decreasing_H33_long$sample, levels = c("6h", "12h", "24h", "48h"))
+sample_order_boxplot2 = factor(decreasing_H33_long$sample, levels = c("6h", "12h", "24h", "48h"))
 
 boxplot2 = ggplot() + geom_boxplot(
   data = decreasing_H33_long,
-  aes(x = sample_order, y = read_count),
+  aes(x = sample_order_boxplot2, y = read_count),
   color = "#fc9272"
 ) +
   labs(
@@ -211,7 +211,7 @@ h33_enh = h33_enh %>%
   mutate(row_id = queryHits(ol)) %>% 
   mutate(enhancer_status = "active enhancer") %>% 
   dplyr::select(enhancer_status, row_id)
-#read_counts = read_counts %>% rowid_to_column(., "row_id")
+read_counts = read_counts %>% rowid_to_column(., "row_id")
 h33_enh = read_counts %>% left_join(., h33_enh, by = "row_id") %>% 
   dplyr::mutate(enhancer_status = replace_na(enhancer_status, "non-enhancer"))
 mat = h33_enh %>% dplyr::select(starts_with("Epi")) %>% as.matrix

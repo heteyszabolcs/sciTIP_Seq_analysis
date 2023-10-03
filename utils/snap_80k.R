@@ -11,7 +11,9 @@ pacman::p_load("Seurat",
                "ggpubr",
                "purrr",
                "SnapATAC",
-               "umap")
+               "umap",
+               "ComplexHeatmap",
+               "circlize")
 
 set.seed(42)
 
@@ -23,7 +25,7 @@ cluster_ids = cluster_ids[grep("80k", cluster_ids)]
 
 # load Seurat object + marker analysis output
 seurat =
-  readRDS(file = "../data/20230316_H3.2/count_tables/20230316_H3.2_read_counts-cells_above_1000reads_5k.Rds")
+  readRDS(file = "../data/20230316_H3.2/count_tables/20230316_H3.2_read_counts-cells_above_1000reads_80k_bins.Rds")
 markers = fread("../results/Seurat/Seurat_H3.2_sciTIP_80k_Marker_analysis.tsv")
 markers = markers %>% 
   dplyr::filter(avg_log2FC > 0.2) %>% 
@@ -49,7 +51,6 @@ snap = createSnapFromBmat(as(t(as.matrix(mat)), "sparseMatrix"),
                           bins = bins)
 
 chr.exclude = seqlevels(snap@feature)[grep("random|chrM", seqlevels(snap@feature))]
-
 idy = grep(paste(chr.exclude, collapse = "|"), snap@feature)
 
 if (length(idy) > 0) {
@@ -126,12 +127,12 @@ retrieve_clusters = function(cluster_ids, snap) {
   
 }
 
-# scRepli-seq (80 kb bins) overlap with sciTip-seq (5 kb bins)
+# scRepli-seq (80 kb bins) overlap with sciTip-seq (80 kb bins)
 overlaps = function(cluster, screpliseq) {
   ol = findOverlaps(cluster, screpliseq, type = "any", ignore.strand = FALSE)
   both = cluster[queryHits(ol)]
   ids_both = tibble(seq = as.vector(both@seqnames), start = both@ranges@start,
-                    end = as.numeric(start) + 5000, merged = paste(seq, start, end, sep = "-")) %>% 
+                    end = as.numeric(start) + 80000, merged = paste(seq, start, end, sep = "-")) %>% 
     distinct(merged) %>% pull(merged)  
   return(ids_both)
 }
@@ -242,7 +243,7 @@ hist5 = hist(hist_input = input_cluster5, title = "cluster 5")
 (hist0 + hist1 + hist2) / (hist3 + hist4 + hist5)
 
 ggsave(
-  glue("{result_folder}H3.2_sciTIP-Seq-scRepli-Seq_cluster_read_counts_hist.png"),
+  glue("{result_folder}H3.2_sciTIP-Seq_80k-scRepli-Seq_cluster_read_counts_hist.png"),
   plot = last_plot(),
   width = 12,
   height = 6,
@@ -250,7 +251,7 @@ ggsave(
 )
 
 ggsave(
-  glue("{result_folder}H3.2_sciTIP-Seq-scRepli-Seq_cluster_read_counts_hist.pdf"),
+  glue("{result_folder}H3.2_sciTIP-Seq_80k-scRepli-Seq_cluster_read_counts_hist.pdf"),
   plot = last_plot(),
   width = 12,
   height = 6
@@ -265,7 +266,7 @@ bp5 = bp(hist_input = input_cluster5, title = "cluster 5")
 (bp0 + bp1 + bp2) / (bp3 + bp4 + bp5)
 
 ggsave(
-  glue("{result_folder}H3.2_sciTIP-Seq-scRepli-Seq_cluster_read_counts_box.png"),
+  glue("{result_folder}H3.2_sciTIP-Seq_80k-scRepli-Seq_cluster_read_counts_box.png"),
   plot = last_plot(),
   width = 12,
   height = 6,
@@ -273,7 +274,7 @@ ggsave(
 )
 
 ggsave(
-  glue("{result_folder}H3.2_sciTIP-Seq-scRepli-Seq_cluster_read_counts_box.pdf"),
+  glue("{result_folder}H3.2_sciTIP-Seq_80k-scRepli-Seq_cluster_read_counts_box.pdf"),
   plot = last_plot(),
   width = 12,
   height = 6
@@ -346,8 +347,6 @@ replication_state = function(screpliseq_sets,
 }
 
 make_heatmap = function(replication_state_binary, scirepliseq_label, cluster_label) {
-  ("ComplexHeatmap")
-  ("circlize")
   col_fun = colorRamp2(c(-1, 0, 1), c("black", "white", "#fec44f"))
   lgd3 = Legend(labels = c("repl.", "no data", "non-repl."), 
                 legend_gp = gpar(fill = 7:9, color = c("black", "white", "#fec44f")), 
@@ -389,7 +388,7 @@ cluster1_late = replication_state(screpliseq_sets = screpliseq_lates,
                                  marker_regions = compute_marker_regions_gr(cluster = 1))
 
 pdf(
-  file = glue("{result_folder}cluster1_early_sciRepli-Seq.pdf"),
+  file = glue("{result_folder}cluster1_80k_early_sciRepli-Seq.pdf"),
   width = 6,
   height = 6
 )
@@ -398,7 +397,7 @@ cl1_early_hm = make_heatmap(replication_state_binary = cluster1_early,
              cluster_label = "cluster 1")
 dev.off()
 pdf(
-  file = glue("{result_folder}cluster1_mid_sciRepli-Seq.pdf"),
+  file = glue("{result_folder}cluster1_80k_mid_sciRepli-Seq.pdf"),
   width = 6,
   height = 6
 )
@@ -407,7 +406,7 @@ cl1_mid_hm = make_heatmap(replication_state_binary = cluster1_mid,
              cluster_label = "cluster 1")
 dev.off()
 pdf(
-  file = glue("{result_folder}cluster1_late_sciRepli-Seq.pdf"),
+  file = glue("{result_folder}cluster1_80k_late_sciRepli-Seq.pdf"),
   width = 6,
   height = 6
 )
@@ -446,79 +445,7 @@ DimPlot(
   NoAxes() + NoLegend()
 
 ggsave(
-  glue("{result_folder}Seurat_H3.2_sciTIP_UMAP_cluster1.pdf"),
-  plot = last_plot(),
-  width = 4,
-  height = 4
-)
-
-# sciTIP-Seq cluster 2
-cluster2_early = replication_state(screpliseq_sets = screpliseq_earlys,
-                                   marker_regions = compute_marker_regions_gr(cluster = 2))
-cluster2_mid = replication_state(screpliseq_sets = screpliseq_mids,
-                                 marker_regions = compute_marker_regions_gr(cluster = 2))
-cluster2_late = replication_state(screpliseq_sets = screpliseq_lates,
-                                  marker_regions = compute_marker_regions_gr(cluster = 2))
-
-pdf(
-  file = glue("{result_folder}cluster2_early_sciRepli-Seq.pdf"),
-  width = 6,
-  height = 6
-)
-cl2_early_hm = make_heatmap(replication_state_binary = cluster2_early,
-                            scirepliseq_label = "early", 
-                            cluster_label = "cluster 2")
-dev.off()
-pdf(
-  file = glue("{result_folder}cluster2_mid_sciRepli-Seq.pdf"),
-  width = 6,
-  height = 6
-)
-cl2_mid_hm = make_heatmap(replication_state_binary = cluster2_mid,
-                          scirepliseq_label = "mid", 
-                          cluster_label = "cluster 2")
-dev.off()
-pdf(
-  file = glue("{result_folder}cluster2_late_sciRepli-Seq.pdf"),
-  width = 6,
-  height = 6
-)
-cl2_late_hm = make_heatmap(replication_state_binary = cluster2_late,
-                           scirepliseq_label = "late", 
-                           cluster_label = "cluster 2")
-dev.off()
-cols = c(
-  "scRNA-Seq" = "#bdbdbd",
-  "0" = "#bdbdbd",
-  "1" = "#bdbdbd",
-  "2" = "#de2d26",
-  "3" = "#bdbdbd",
-  "4" = "#bdbdbd",
-  "5" = "#bdbdbd")
-
-DimPlot(
-  seurat,
-  pt.size = 2,
-  label.size = 7,
-  group.by = 'seurat_clusters',
-  repel = TRUE,
-  order = "3",
-  raster = TRUE
-) +
-  xlim(-15, 15) +
-  ylim(-15, 15) +
-  scale_colour_manual(values = cols) +
-  ggtitle("sciTIP-Seq cluster 2") +
-  theme(
-    text = element_text(size = 25),
-    plot.title = element_text(size = 20),
-    axis.text.x = element_text(size = 25, color = "black"),
-    axis.text.y = element_text(size = 25, color = "black")
-  ) +
-  NoAxes() + NoLegend()
-
-ggsave(
-  glue("{result_folder}Seurat_H3.2_sciTIP_UMAP_cluster2.pdf"),
+  glue("{result_folder}Seurat_H3.2_sciTIP_80k_UMAP_cluster1.pdf"),
   plot = last_plot(),
   width = 4,
   height = 4
@@ -533,7 +460,7 @@ cluster3_late = replication_state(screpliseq_sets = screpliseq_lates,
                                   marker_regions = compute_marker_regions_gr(cluster = 3))
 
 pdf(
-  file = glue("{result_folder}cluster3_early_sciRepli-Seq.pdf"),
+  file = glue("{result_folder}cluster3_80k_early_sciRepli-Seq.pdf"),
   width = 6,
   height = 6
 )
@@ -542,7 +469,7 @@ cl3_early_hm = make_heatmap(replication_state_binary = cluster3_early,
                             cluster_label = "cluster 3")
 dev.off()
 pdf(
-  file = glue("{result_folder}cluster3_mid_sciRepli-Seq.pdf"),
+  file = glue("{result_folder}cluster3_80k_mid_sciRepli-Seq.pdf"),
   width = 6,
   height = 6
 )
@@ -551,7 +478,7 @@ cl3_mid_hm = make_heatmap(replication_state_binary = cluster3_mid,
                           cluster_label = "cluster 3")
 dev.off()
 pdf(
-  file = glue("{result_folder}cluster3_late_sciRepli-Seq.pdf"),
+  file = glue("{result_folder}cluster3_80k_late_sciRepli-Seq.pdf"),
   width = 6,
   height = 6
 )
@@ -559,43 +486,6 @@ cl3_late_hm = make_heatmap(replication_state_binary = cluster3_late,
                            scirepliseq_label = "late", 
                            cluster_label = "cluster 3")
 dev.off()
-cols = c(
-  "scRNA-Seq" = "#bdbdbd",
-  "0" = "#de2d26",
-  "1" = "#bdbdbd",
-  "2" = "#bdbdbd",
-  "3" = "#bdbdbd",
-  "4" = "#bdbdbd",
-  "5" = "#bdbdbd")
-
-DimPlot(
-  seurat,
-  pt.size = 2,
-  label.size = 7,
-  group.by = 'seurat_clusters',
-  repel = TRUE,
-  order = "3",
-  raster = TRUE
-) +
-  xlim(-15, 15) +
-  ylim(-15, 15) +
-  scale_colour_manual(values = cols) +
-  ggtitle("sciTIP-Seq cluster 0") +
-  theme(
-    text = element_text(size = 25),
-    plot.title = element_text(size = 20),
-    axis.text.x = element_text(size = 25, color = "black"),
-    axis.text.y = element_text(size = 25, color = "black")
-  ) +
-  NoAxes() + NoLegend()
-
-ggsave(
-  glue("{result_folder}Seurat_H3.2_sciTIP_UMAP_cluster0.pdf"),
-  plot = last_plot(),
-  width = 4,
-  height = 4
-)
-
 cols = c(
   "scRNA-Seq" = "#bdbdbd",
   "0" = "#bdbdbd",
@@ -627,12 +517,47 @@ DimPlot(
   NoAxes() + NoLegend()
 
 ggsave(
-  glue("{result_folder}Seurat_H3.2_sciTIP_UMAP_cluster3.pdf"),
+  glue("{result_folder}Seurat_H3.2_sciTIP_80k_UMAP_cluster3.pdf"),
   plot = last_plot(),
   width = 4,
   height = 4
 )
 
+# sciTIP-Seq cluster 4
+cluster4_early = replication_state(screpliseq_sets = screpliseq_earlys,
+                                   marker_regions = compute_marker_regions_gr(cluster = 4))
+cluster4_mid = replication_state(screpliseq_sets = screpliseq_mids,
+                                 marker_regions = compute_marker_regions_gr(cluster = 4))
+cluster4_late = replication_state(screpliseq_sets = screpliseq_lates,
+                                  marker_regions = compute_marker_regions_gr(cluster = 4))
+
+pdf(
+  file = glue("{result_folder}cluster4_80k_early_sciRepli-Seq.pdf"),
+  width = 6,
+  height = 6
+)
+cl4_early_hm = make_heatmap(replication_state_binary = cluster4_early,
+                            scirepliseq_label = "early", 
+                            cluster_label = "cluster 4")
+dev.off()
+pdf(
+  file = glue("{result_folder}cluster3_80k_mid_sciRepli-Seq.pdf"),
+  width = 6,
+  height = 6
+)
+cl4_mid_hm = make_heatmap(replication_state_binary = cluster4_mid,
+                          scirepliseq_label = "mid", 
+                          cluster_label = "cluster 4")
+dev.off()
+pdf(
+  file = glue("{result_folder}cluster3_80k_late_sciRepli-Seq.pdf"),
+  width = 6,
+  height = 6
+)
+cl4_late_hm = make_heatmap(replication_state_binary = cluster4_late,
+                           scirepliseq_label = "late", 
+                           cluster_label = "cluster 4")
+dev.off()
 cols = c(
   "scRNA-Seq" = "#bdbdbd",
   "0" = "#bdbdbd",
@@ -664,7 +589,7 @@ DimPlot(
   NoAxes() + NoLegend()
 
 ggsave(
-  glue("{result_folder}Seurat_H3.2_sciTIP_UMAP_cluster4.pdf"),
+  glue("{result_folder}Seurat_H3.2_sciTIP_80k_UMAP_cluster4.pdf"),
   plot = last_plot(),
   width = 4,
   height = 4

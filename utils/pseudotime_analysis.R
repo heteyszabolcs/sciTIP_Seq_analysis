@@ -231,3 +231,38 @@ features = branch_feature_importance %>%
   filter(to == "M2") %>% 
   top_n(10, importance) %>% 
   pull(feature_id)
+
+seurat = readRDS(file = "../data/20230316_H3.2/count_tables/20230316_H3.2_read_counts-cells_above_1000reads_5k.Rds")
+meta = seurat@meta.data
+cell_ids = rownames(meta)
+meta = meta %>% mutate(cell_id = cell_ids) %>% inner_join(., h32_pseudotime_scores, by = c("cell_id" = "cell_id"))
+meta = as.data.frame(meta)
+rownames(meta) = cell_ids
+seurat@meta.data = meta
+
+FeaturePlot(object = seurat, features = 'pseudotime_score') +
+  xlim(-10, 10) + 
+  ylim(-10, 10) + 
+  ggtitle("Pseudotime scores") +
+  theme(
+    text = element_text(size = 25),
+    plot.title = element_text(size = 20),
+    axis.text.x = element_text(size = 25, color = "black"),
+    axis.text.y = element_text(size = 25, color = "black")
+  )
+
+ggsave(
+  glue("{result_folder}Seurat_H3.2_sciTIP_UMAP_pseudotimescores.png"),
+  plot = last_plot(),
+  width = 10,
+  height = 10,
+  dpi = 300,
+)
+
+ggsave(
+  glue("{result_folder}Seurat_H3.2_sciTIP_UMAP_pseudotimescores.pdf"),
+  plot = last_plot(),
+  width = 10,
+  height = 10,
+  device = "pdf"
+)

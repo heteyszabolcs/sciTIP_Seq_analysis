@@ -49,5 +49,12 @@ output was indexed by bowtie2
 	-w: name of working dir
 	-o: directory for SNPsplit outputs
 	
+	_snp_split.sh_ runs snp_split.R, that contains the main SNPsplit command:
+	
+	SNPsplit --snp_file VCF_file.vcf processed_bam.bam
+	
+		*VCF_file is the VCF file with the SNP informations.
+		*Processed bam comes from the samtools processing of _bowtie2_allele_spec.R_
+	
 	[SNPsplit](http://felixkrueger.github.io/SNPsplit/)
   

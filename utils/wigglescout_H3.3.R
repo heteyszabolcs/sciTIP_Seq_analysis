@@ -9,7 +9,8 @@ pacman::p_load("tidyverse",
                "magick",
                "ggrastr",
                "ComplexHeatmap",
-               "circlize") 
+               "circlize",
+               "matrixStats") 
 
 
 # output folder
@@ -38,6 +39,18 @@ cm = GRanges(
     start = cm$V2,
     end = cm$V3,
     names = cm$V6
+  )
+)
+
+cm_orig_size = "../data/bed/ESC_Enhancer_CruzMolina.active_mm10.bed"
+cm_orig_size = fread(cm_orig_size)
+cm_orig_size$V6 = "Cruz-Molina_active_enh"
+cm_orig_size = GRanges(
+  seqnames = cm_orig_size$V1,
+  ranges = IRanges(
+    start = cm_orig_size$V2,
+    end = cm_orig_size$V3,
+    names = cm_orig_size$V6
   )
 )
 
@@ -138,7 +151,7 @@ correlation_analysis = function(bigwig1 = epilc[1],
   
   print(glue("Working on: {name1}-{name2}"))
   read_densities = bw_loci(c(bigwig1, bigwig2),
-                           loci = ol_w_cm,)
+                           loci = ol_w_cm)
   read_densities = as_tibble(read_densities)
   thr = read_densities %>% select(starts_with("Epi")) %>% arrange(., across(starts_with("Epi"), desc)) %>% pull(starts_with("Epi")) 
   thr = thr[50]
@@ -159,6 +172,69 @@ correlation_analysis = function(bigwig1 = epilc[1],
   return(output)
 }
 
+top_h33_over_cm =  function(h33_bigwig = epilc[4], top = 50) {
+  name = strsplit(
+    strsplit(
+      h33_bigwig,
+      "../results/Seurat/cluster_bigwigs/H3.3_EpiLC_timepoints/"
+    )[[1]][2],
+    "_pseudobulk_RPGC.bigwig"
+  )[[1]][1]
+  
+  peaks = epilc_peaks[grep(name, epilc_peaks)]
+  
+  peaks = fread(peaks)
+  peaks = GRanges(seqnames = peaks$V1,
+                  ranges = IRanges(start = peaks$V2,
+                                   end = peaks$V3))
+  
+  ol = findOverlaps(peaks, cm, type = "any", ignore.strand = TRUE)
+  ol_w_cm = peaks[queryHits(ol)]
+  
+  read_densities = bw_loci(h33_bigwig,
+                           loci = ol_w_cm)
+  read_densities = as_tibble(read_densities)
+  thr = read_densities %>% pull(starts_with("Epi"))
+  thr = thr[order(thr, decreasing = TRUE)][top]
+  
+  read_densities = read_densities %>% select(-width, -strand) %>%
+    filter_at(4, all_vars(. > thr)) %>%
+    na.omit()
+  top_ranges = GRanges(
+    seqnames = read_densities$seqnames,
+    ranges = IRanges(start = read_densities$start,
+                     end = read_densities$end)
+  )
+  return(top_ranges)
+  
+}
+
+top_k27ac_over_cm =  function(k27ac_bigwig, top = 50) {
+  name = strsplit(
+    strsplit(
+      k27ac_bigwig,
+      "../data/bigwig/Yang_2019/GSM3314701_H3K27ac-"
+    )[[1]][2],
+    "_mm10.bw"
+  )[[1]][1]
+  
+  read_densities = bw_loci(k27ac_bigwig,
+                           loci = cm)
+  read_densities = as_tibble(read_densities)
+  thr = read_densities %>% pull(starts_with("GSM"))
+  thr = thr[order(thr, decreasing = TRUE)][top]
+  
+  read_densities = read_densities %>% select(-width, -strand) %>%
+    filter_at(4, all_vars(. > thr)) %>%
+    na.omit()
+  top_ranges = GRanges(
+    seqnames = read_densities$seqnames,
+    ranges = IRanges(start = read_densities$start,
+                     end = read_densities$end)
+  )
+  return(top_ranges)
+  
+}
 
 ###### H3K27ac (Yang)
 k27ac = yang[grep(pattern = "ac", x = yang)]
@@ -440,4 +516,648 @@ ggsave(
   width = 8,
   height = 8
 )
+
+## heatmaps
+# Heatmaps about enhancers with the most variable H3.3 signal
+k27ac_read_dens = bw_loci(k27ac, loci = cm)
+k27ac_read_dens = as_tibble(k27ac_read_dens)
+k27ac_read_dens = k27ac_read_dens %>% 
+  na.omit(k27ac_read_dens) %>% 
+  rowwise() %>% 
+  mutate(., variance = sd(c_across(c(starts_with("GSM")))),
+         mean = mean(c_across(c(starts_with("GSM"))))) %>%  
+  dplyr::select(-width, -strand) %>% 
+  mutate(range_id = paste(seqnames, start, end, sep = "_"))
+
+k4me_read_dens = bw_loci(k4me1, loci = cm)
+k4me_read_dens = as_tibble(k4me_read_dens)
+k4me_read_dens = k4me_read_dens %>% 
+  na.omit(k4me_read_dens) %>% 
+  rowwise() %>% 
+  mutate(., variance = sd(c_across(c(starts_with("GSM")))),
+         mean = mean(c_across(c(starts_with("GSM"))))) %>%  
+  dplyr::select(-width, -strand) %>% 
+  mutate(range_id = paste(seqnames, start, end, sep = "_"))
+
+h33_read_dens = bw_loci(epilc, loci = cm)
+h33_read_dens = as_tibble(h33_read_dens)
+h33_read_dens = h33_read_dens %>% 
+  na.omit(h33_read_dens) %>% 
+  rowwise() %>% 
+  mutate(., variance = sd(c_across(c(starts_with("EpiLC")))),
+         mean = mean(c_across(c(starts_with("EpiLC")))))
+top_var = h33_read_dens %>% arrange(desc(variance)) %>% 
+  ungroup() %>% 
+  top_n(., n = 50, wt = variance) %>% 
+  dplyr::select(-width, -strand) %>% 
+  mutate(range_id = paste(seqnames, start, end, sep = "_")) %>% 
+  select(range_id, EpiLC_6h_pseudobulk_RPGC, EpiLC_12h_pseudobulk_RPGC, EpiLC_24h_pseudobulk_RPGC,
+         EpiLC_48h_pseudobulk_RPGC)
+range_order = top_var %>% pull(range_id)
+
+top_var_k27ac = k27ac_read_dens %>% filter(range_id %in% top_var$range_id) %>% 
+  select(range_id, GSM3314703_H3K27ac.6h_mm10, GSM3314704_H3K27ac.12h_mm10, GSM3314705_H3K27ac.24h_mm10,
+         GSM3314707_H3K27ac.48h_mm10) 
+top_var_k4me = k4me_read_dens %>% filter(range_id %in% top_var$range_id) %>% 
+  select(range_id, GSM3314719_H3K4me1.6h_mm10, GSM3314720_H3K4me1.12h_mm10, GSM3314721_H3K4me1.24h_mm10,
+         GSM3314723_H3K4me1.48h_mm10) 
+
+top_var = top_var %>% column_to_rownames(var = "range_id") %>% as.matrix
+log_top_var = log2(top_var)
+colnames(log_top_var) = c("H3.3, 6h", "H3.3, 12h", "H3.3, 24h", "H3.3, 48h")
+top_var_k27ac = top_var_k27ac %>% column_to_rownames(var = "range_id")
+top_var_k27ac = top_var_k27ac[range_order, ]
+top_var_k27ac = as.matrix(top_var_k27ac)
+log_top_var_k27ac = log2(top_var_k27ac)
+colnames(log_top_var_k27ac) = c("K27ac, 6h", "K27ac, 12h", "K27ac, 24h", "K27ac, 48h")
+
+top_var_k4me = top_var_k4me %>% column_to_rownames(var = "range_id")
+top_var_k4me = top_var_k4me[range_order, ]
+top_var_k4me = as.matrix(top_var_k4me)
+log_top_var_k4me = log2(top_var_k4me)
+colnames(log_top_var_k4me) = c("K4me1, 6h", "K4me1, 12h", "K4me1, 24h", "K4me1, 48h")
+
+library("RColorBrewer")
+display.brewer.pal(n = 3, name = 'Purples')
+brewer.pal(n = 3, name = "Purples")
+
+col_fun1 = colorRamp2(c(0, 1, 2), brewer.pal(n = 3, name = "Purples"))
+top_var_hm = Heatmap(
+  log_top_var,
+  column_title = "",
+  row_title = "most variable H3.3 signals at enhancers",
+  name = "log2 read count",
+  # clustering_method_rows = "complete",
+  # clustering_method_columns = "complete",
+  col = col_fun1,
+  rect_gp = gpar(col = "black", lwd = 0.1),
+  show_column_dend = FALSE,
+  cluster_columns = FALSE,
+  cluster_rows = FALSE,
+  show_row_dend = FALSE,
+  show_row_names = FALSE,
+  heatmap_width = unit(4, "cm"),
+  heatmap_height = unit(15, "cm"),
+  row_names_gp = gpar(fontsize = 15),
+  column_names_gp = gpar(fontsize = 12),
+  column_title_gp = gpar(fontsize = 10),
+  column_names_rot = 90)
+
+display.brewer.pal(n = 3, name = 'Blues')
+
+col_fun2 = colorRamp2(c(0, 1, 2), brewer.pal(n = 3, name = "Blues"))
+top_var_k27ac_hm = Heatmap(
+  log_top_var_k27ac,
+  column_title = "",
+  row_title = "most variable H3K27ac signals at enhancers",
+  name = "log2 read count",
+  # clustering_method_rows = "complete",
+  # clustering_method_columns = "complete",
+  col = col_fun2,
+  rect_gp = gpar(col = "black", lwd = 0.1),
+  show_column_dend = FALSE,
+  cluster_columns = FALSE,
+  cluster_rows = FALSE,
+  show_row_dend = FALSE,
+  show_row_names = FALSE,
+  heatmap_width = unit(3, "cm"),
+  heatmap_height = unit(15, "cm"),
+  row_names_gp = gpar(fontsize = 15),
+  column_names_gp = gpar(fontsize = 12),
+  column_title_gp = gpar(fontsize = 10),
+  column_names_rot = 90)
+
+display.brewer.pal(n = 3, name = 'Reds')
+
+col_fun3 = colorRamp2(c(0, 0.25, 0.5), brewer.pal(n = 3, name = "Reds"))
+top_var_k4me1_hm = Heatmap(
+  log_top_var_k4me,
+  column_title = "",
+  row_title = "most variable H3K4me1 signals at enhancers",
+  name = "log2 read count",
+  # clustering_method_rows = "complete",
+  # clustering_method_columns = "complete",
+  col = col_fun3,
+  rect_gp = gpar(col = "black", lwd = 0.1),
+  show_column_dend = FALSE,
+  cluster_columns = FALSE,
+  cluster_rows = FALSE,
+  show_row_dend = FALSE,
+  show_row_names = FALSE,
+  heatmap_width = unit(3, "cm"),
+  heatmap_height = unit(15, "cm"),
+  row_names_gp = gpar(fontsize = 15),
+  column_names_gp = gpar(fontsize = 12),
+  column_title_gp = gpar(fontsize = 10),
+  column_names_rot = 90)
+
+png(
+  file = glue("{result_folder}most_variable_H3.3_enhancers-hm.png"),
+  width = 14,
+  height = 16,
+  units = 'cm',
+  res = 500
+)
+top_var_hm + top_var_k27ac_hm + top_var_k4me1_hm
+dev.off()
+
+# Heatmaps of top H3.3 ranges at Cruz-Molina enhancers
+heatmaps_of_tops = function(h33_bigwig) {
+  name = strsplit(
+    strsplit(
+      h33_bigwig,
+      "../results/Seurat/cluster_bigwigs/H3.3_EpiLC_timepoints/"
+    )[[1]][2],
+    "_pseudobulk_RPGC.bigwig"
+  )[[1]][1]
+  
+  print(name)
+  
+  # K27ac over enhancers with highest H3.3 signal
+  k27ac_read_dens = bw_loci(k27ac, loci = top_h33_over_cm(h33_bigwig, top = 52))
+  k27ac_read_dens = as_tibble(k27ac_read_dens)
+  k27ac_read_dens = k27ac_read_dens %>% 
+    na.omit(k27ac_read_dens) %>% 
+    rowwise() %>% 
+    mutate(., variance = sd(c_across(c(starts_with("GSM")))),
+           mean = mean(c_across(c(starts_with("GSM"))))) %>%  
+    dplyr::select(-width, -strand) %>% 
+    mutate(range_id = paste(seqnames, start, end, sep = "_"))
+  
+  # K4me1 over enhancers with highest H3.3 signal
+  k4me_read_dens = bw_loci(k4me1, loci = top_h33_over_cm(h33_bigwig, top = 52))
+  k4me_read_dens = as_tibble(k4me_read_dens)
+  k4me_read_dens = k4me_read_dens %>% 
+    na.omit(k4me_read_dens) %>% 
+    rowwise() %>% 
+    mutate(., variance = sd(c_across(c(starts_with("GSM")))),
+           mean = mean(c_across(c(starts_with("GSM"))))) %>%  
+    dplyr::select(-width, -strand) %>% 
+    mutate(range_id = paste(seqnames, start, end, sep = "_"))
+  
+  # EpiLC H3.3 read densities over enhancers with highest H3.3 signal
+  h33_read_dens = bw_loci(epilc, loci = top_h33_over_cm(epilc[grep(name, epilc)], top = 52))
+  h33_read_dens = as_tibble(h33_read_dens)
+  h33_read_dens = h33_read_dens %>% 
+    na.omit(h33_read_dens) %>% 
+    rowwise() %>% 
+    mutate(., variance = sd(c_across(c(starts_with("EpiLC")))),
+           mean = mean(c_across(c(starts_with("EpiLC")))))
+  
+  # top 50 variable ranges based on SD
+  top_var = h33_read_dens %>% arrange(desc(variance)) %>% 
+    ungroup() %>% 
+    top_n(., n = 50, wt = variance) %>% 
+    dplyr::select(-width, -strand) %>% 
+    mutate(range_id = paste(seqnames, start, end, sep = "_")) %>% 
+    select(range_id, EpiLC_6h_pseudobulk_RPGC, EpiLC_12h_pseudobulk_RPGC, EpiLC_24h_pseudobulk_RPGC,
+           EpiLC_48h_pseudobulk_RPGC)
+  range_order = top_var %>% pull(range_id)
+  
+  top_var_k27ac = k27ac_read_dens %>% filter(range_id %in% top_var$range_id) %>% 
+    select(range_id, GSM3314703_H3K27ac.6h_mm10, GSM3314704_H3K27ac.12h_mm10, GSM3314705_H3K27ac.24h_mm10,
+           GSM3314707_H3K27ac.48h_mm10) 
+  top_var_k4me = k4me_read_dens %>% filter(range_id %in% top_var$range_id) %>% 
+    select(range_id, GSM3314719_H3K4me1.6h_mm10, GSM3314720_H3K4me1.12h_mm10, GSM3314721_H3K4me1.24h_mm10,
+           GSM3314723_H3K4me1.48h_mm10) 
+  
+  # EpiLC H3.3 heatmap input
+  top_var = top_var %>% column_to_rownames(var = "range_id") %>% as.matrix
+  log_top_var = log2(top_var + 2)
+  colnames(log_top_var) = c("H3.3, 6h", "H3.3, 12h", "H3.3, 24h", "H3.3, 48h")
+  
+  # K27ac heatmap input
+  top_var_k27ac = top_var_k27ac %>% column_to_rownames(var = "range_id")
+  top_var_k27ac = top_var_k27ac[range_order, ]
+  top_var_k27ac = as.matrix(top_var_k27ac)
+  log_top_var_k27ac = log2(top_var_k27ac + 2)
+  colnames(log_top_var_k27ac) = c("K27ac, 6h", "K27ac, 12h", "K27ac, 24h", "K27ac, 48h")
+  
+  # K4me1 heatmap input
+  top_var_k4me = top_var_k4me %>% column_to_rownames(var = "range_id")
+  top_var_k4me = top_var_k4me[range_order, ]
+  top_var_k4me = as.matrix(top_var_k4me)
+  log_top_var_k4me = log2(top_var_k4me + 2)
+  colnames(log_top_var_k4me) = c("K4me1, 6h", "K4me1, 12h", "K4me1, 24h", "K4me1, 48h")
+  
+  # exclude rows with "NA"
+  ranges_wo_nas_k27ac = rownames(log_top_var_k27ac)[which(rownames(log_top_var_k27ac) != "NA")]
+  ranges_wo_nas_k4me1 = rownames(log_top_var_k4me)[which(rownames(log_top_var_k4me) != "NA")]
+  wo_nas = intersect(ranges_wo_nas_k27ac, ranges_wo_nas_k4me1)
+  log_top_var_k4me = log_top_var_k4me[wo_nas,]
+  log_top_var_k27ac = log_top_var_k27ac[wo_nas,]
+  log_top_var = log_top_var[wo_nas,]
+  
+  # test
+  if(all(rownames(log_top_var) == rownames(log_top_var_k4me))) {
+    "rownames are the same"
+  }
+  
+  # pearson heatmap
+  pearsons_k27ac = numeric()
+  for (i in seq(1, dim(log_top_var)[1])) {
+    coef = cor(log_top_var[i, ], log_top_var_k27ac[i, ], method = "pearson")
+    pearsons_k27ac = c(pearsons_k27ac, round(coef, 2))
+  }
+  pearsons_k4me1 = numeric()
+  for (i in seq(1, dim(log_top_var)[1])) {
+    coef = cor(log_top_var[i, ], log_top_var_k4me[i, ], method = "pearson")
+    pearsons_k4me1 = c(pearsons_k4me1, round(coef, 2))
+  }
+  pearsons = tibble(k27ac_pearsons = pearsons_k27ac, k4me1_pearsons = pearsons_k4me1)
+  pearsons = as.matrix(pearsons)
+  rownames(pearsons) = rownames(log_top_var)
+  colnames(pearsons) = c("K27ac", "K4me1")
+  
+  # heatmaps
+  col_fun1 = colorRamp2(c(0, 2, 4), brewer.pal(n = 3, name = "Purples"))
+  top_hm = Heatmap(
+    log_top_var,
+    column_title = "",
+    row_title = glue("Highest {name} H3.3 signals at enhancers"),
+    name = "H3.3 log2 read count",
+    clustering_method_rows = "complete",
+    # clustering_method_columns = "complete",
+    col = col_fun1,
+    rect_gp = gpar(col = "black", lwd = 0.1),
+    show_column_dend = FALSE,
+    cluster_columns = FALSE,
+    cluster_rows = TRUE,
+    show_row_dend = TRUE,
+    show_row_names = FALSE,
+    heatmap_width = unit(4, "cm"),
+    heatmap_height = unit(15, "cm"),
+    row_names_gp = gpar(fontsize = 15),
+    column_names_gp = gpar(fontsize = 12),
+    column_title_gp = gpar(fontsize = 10),
+    column_names_rot = 90)
+  top_hm
+  
+  max = round(max(log_top_var_k27ac))
+  min = round(min(log_top_var_k27ac))
+  middle = mean(c(max, min))
+  col_fun2 = colorRamp2(c(min, middle, max), brewer.pal(n = 3, name = "Blues"))
+  top_k27ac_hm = Heatmap(
+    log_top_var_k27ac,
+    column_title = "",
+    row_title = glue("Highest {name} H3.3 signals at enhancers"),
+    name = "H3K27ac log2 read count",
+    # clustering_method_rows = "complete",
+    # clustering_method_columns = "complete",
+    col = col_fun2,
+    rect_gp = gpar(col = "black", lwd = 0.1),
+    show_column_dend = FALSE,
+    cluster_columns = FALSE,
+    cluster_rows = FALSE,
+    show_row_dend = FALSE,
+    show_row_names = FALSE,
+    heatmap_width = unit(2, "cm"),
+    heatmap_height = unit(15, "cm"),
+    row_names_gp = gpar(fontsize = 15),
+    column_names_gp = gpar(fontsize = 12),
+    column_title_gp = gpar(fontsize = 10),
+    column_names_rot = 90)
+  top_k27ac_hm
+  
+  max = round(max(log_top_var_k4me))
+  min = round(min(log_top_var_k4me))
+  middle = mean(c(max, min))
+  col_fun3 = colorRamp2(c(min, middle, max), brewer.pal(n = 3, name = "Greens"))
+  top_k4me1_hm = Heatmap(
+    log_top_var_k4me,
+    column_title = "",
+    row_title = glue("Highest {name} H3.3 signals at enhancers"),
+    name = "H3K4me1 log2 read count",
+    # clustering_method_rows = "complete",
+    # clustering_method_columns = "complete",
+    col = col_fun3,
+    rect_gp = gpar(col = "black", lwd = 0.1),
+    show_column_dend = FALSE,
+    cluster_columns = FALSE,
+    cluster_rows = FALSE,
+    show_row_dend = FALSE,
+    show_row_names = FALSE,
+    heatmap_width = unit(2, "cm"),
+    heatmap_height = unit(15, "cm"),
+    row_names_gp = gpar(fontsize = 15),
+    column_names_gp = gpar(fontsize = 12),
+    column_title_gp = gpar(fontsize = 10),
+    column_names_rot = 90)
+  top_k4me1_hm
+  
+  pearson_fun = colorRamp2(c(-1, 0, 1), c("#3182bd", "white", "#fc9272"))
+  pearsons_hm = Heatmap(
+    pearsons,
+    column_title = "",
+    row_title = glue("Pearson - between {name} and ChIP-Seq signals"),
+    name = "Pearson",
+    # clustering_method_rows = "complete",
+    # clustering_method_columns = "complete",
+    col = pearson_fun,
+    rect_gp = gpar(col = "black", lwd = 0.1),
+    show_column_dend = FALSE,
+    cluster_columns = FALSE,
+    cluster_rows = FALSE,
+    show_row_dend = FALSE,
+    show_row_names = FALSE,
+    heatmap_width = unit(1, "cm"),
+    heatmap_height = unit(15, "cm"),
+    row_names_gp = gpar(fontsize = 15),
+    column_names_gp = gpar(fontsize = 12),
+    column_title_gp = gpar(fontsize = 10),
+    column_names_rot = 90)
+  pearsons_hm
+  
+  # exporting
+  png(
+    file = glue("{result_folder}highest_{name}_H3.3_enhancers-hm.png"),
+    width = 15,
+    height = 16,
+    units = 'cm',
+    res = 500
+  )
+  hms = top_hm + top_k27ac_hm + top_k4me1_hm + pearsons_hm
+  print(hms)
+  dev.off()
+  
+  pdf(
+    file = glue("{result_folder}highest_{name}_H3.3_enhancers-hm.pdf"),
+    width = 7,
+    height = 7
+  )
+  hms = top_hm + top_k27ac_hm + top_k4me1_hm + pearsons_hm
+  print(hms)
+  dev.off()
+  
+}
+
+# loop through all H3.3 sciTIP-Seq bigwigs
+lapply(epilc, heatmaps_of_tops)
+
+# Heatmaps of top H3K27ac ranges at Cruz-Molina enhancers 
+heatmaps_of_top_k27ac = function(k27ac_bigwig) {
+  
+  name = strsplit(strsplit(
+    strsplit(
+      k27ac_bigwig,
+      "../data/bigwig/Yang_2019/GSM"
+    )[[1]][2],
+    "_H3K27ac-"
+  )[[1]][2],
+  "_mm10.bw")[[1]][1]
+  
+  print(name)
+  if(!name %in% c("6h", "12h", "24h", "48h")) {
+    return(print("Time point does not overlap with H3.3 EpiLC time points"))
+  } 
+  
+  # K27ac over enhancers with highest H3.3 signal
+  k27ac_read_dens = bw_loci(k27ac, loci = top_k27ac_over_cm(k27ac_bigwig, top = 52))
+  k27ac_read_dens = as_tibble(k27ac_read_dens)
+  k27ac_read_dens = k27ac_read_dens %>% 
+    na.omit(k27ac_read_dens) %>% 
+    rowwise() %>% 
+    mutate(., variance = sd(c_across(c(starts_with("GSM")))),
+           mean = mean(c_across(c(starts_with("GSM"))))) %>%  
+    dplyr::select(-width, -strand) %>% 
+    mutate(range_id = paste(seqnames, start, end, sep = "_"))
+  
+  # K4me1 over enhancers with highest H3.3 signal
+  k4me1 = yang[grep(pattern = "H3K4me1", x = yang)]
+  k4me1 = k4me1[c(3,4,5,7)]
+  k4me_read_dens = bw_loci(k4me1, loci = top_k27ac_over_cm(k27ac_bigwig, top = 52))
+  k4me_read_dens = as_tibble(k4me_read_dens)
+  k4me_read_dens = k4me_read_dens %>% 
+    na.omit(k4me_read_dens) %>% 
+    rowwise() %>% 
+    mutate(., variance = sd(c_across(c(starts_with("GSM")))),
+           mean = mean(c_across(c(starts_with("GSM"))))) %>%  
+    dplyr::select(-width, -strand) %>% 
+    mutate(range_id = paste(seqnames, start, end, sep = "_"))
+  
+  # EpiLC H3.3 read densities over enhancers with highest H3.3 signal
+  h33_read_dens = bw_loci(epilc, loci = top_k27ac_over_cm(k27ac_bigwig, top = 52))
+  h33_read_dens = as_tibble(h33_read_dens)
+  h33_read_dens = h33_read_dens %>% 
+    na.omit(h33_read_dens) %>% 
+    rowwise() %>% 
+    mutate(., variance = sd(c_across(c(starts_with("EpiLC")))),
+           mean = mean(c_across(c(starts_with("EpiLC"))))) %>% 
+    mutate(range_id = paste(seqnames, start, end, sep = "_"))
+  
+  # top 50 variable ranges based on SD
+  top_var = k27ac_read_dens %>% arrange(desc(variance)) %>% 
+    ungroup() %>% 
+    top_n(., n = 50, wt = variance) %>% 
+    mutate(range_id = paste(seqnames, start, end, sep = "_")) %>% 
+    select(range_id, GSM3314703_H3K27ac.6h_mm10, GSM3314704_H3K27ac.12h_mm10, GSM3314705_H3K27ac.24h_mm10,
+           GSM3314707_H3K27ac.48h_mm10)
+  range_order = top_var %>% pull(range_id)
+  
+  top_var_h33 = h33_read_dens %>% filter(range_id %in% top_var$range_id) %>% 
+    select(range_id, EpiLC_6h_pseudobulk_RPGC, EpiLC_12h_pseudobulk_RPGC, EpiLC_24h_pseudobulk_RPGC,
+           EpiLC_48h_pseudobulk_RPGC)
+  top_var_k4me = k4me_read_dens %>% filter(range_id %in% top_var$range_id) %>% 
+    select(range_id, GSM3314719_H3K4me1.6h_mm10, GSM3314720_H3K4me1.12h_mm10, GSM3314721_H3K4me1.24h_mm10,
+           GSM3314723_H3K4me1.48h_mm10) 
+  
+  # EpiLC H3.3 heatmap input
+  top_var = top_var %>% column_to_rownames(var = "range_id") %>% as.matrix
+  log_top_var = log2(top_var + 2)
+  colnames(log_top_var) = c("K27ac, 6h", "K27ac, 12h", "K27ac, 24h", "K27ac, 48h")
+  
+  # K27ac heatmap input
+  top_var_h33 = top_var_h33 %>% column_to_rownames(var = "range_id")
+  top_var_h33 = top_var_h33[range_order, ]
+  top_var_h33 = as.matrix(top_var_h33)
+  log_top_var_h33 = log2(top_var_h33 + 2)
+  colnames(log_top_var_h33) = c("H3.3, 6h", "H3.3, 12h", "H3.3, 24h", "H3.3, 48h")
+  
+  # K4me1 heatmap input
+  top_var_k4me = top_var_k4me %>% column_to_rownames(var = "range_id")
+  top_var_k4me = top_var_k4me[range_order, ]
+  top_var_k4me = as.matrix(top_var_k4me)
+  log_top_var_k4me = log2(top_var_k4me + 2)
+  colnames(log_top_var_k4me) = c("K4me1, 6h", "K4me1, 12h", "K4me1, 24h", "K4me1, 48h")
+  
+  # exclude rows with "NA"
+  ranges_wo_nas_h33 = rownames(log_top_var_h33)[which(rownames(log_top_var_h33) != "NA")]
+  ranges_wo_nas_k4me1 = rownames(log_top_var_k4me)[which(rownames(log_top_var_k4me) != "NA")]
+  wo_nas = intersect(ranges_wo_nas_h33, ranges_wo_nas_k4me1)
+  log_top_var_k4me = log_top_var_k4me[wo_nas,]
+  log_top_var_h33 = log_top_var_h33[wo_nas,]
+  log_top_var = log_top_var[wo_nas,]
+  
+  # test
+  if(all(rownames(log_top_var) == rownames(log_top_var_k4me))) {
+    "rownames are the same"
+  }
+  
+  # pearson heatmap
+  pearsons_k27ac = numeric()
+  for (i in seq(1, dim(log_top_var)[1])) {
+    coef = cor(log_top_var[i, ], log_top_var_h33[i, ], method = "pearson")
+    pearsons_k27ac = c(pearsons_k27ac, round(coef, 2))
+  }
+  pearsons_k4me1 = numeric()
+  for (i in seq(1, dim(log_top_var_h33)[1])) {
+    coef = cor(log_top_var_h33[i, ], log_top_var_k4me[i, ], method = "pearson")
+    pearsons_k4me1 = c(pearsons_k4me1, round(coef, 2))
+  }
+  pearsons = tibble(k27ac_pearsons = pearsons_k27ac, k4me1_pearsons = pearsons_k4me1)
+  pearsons = as.matrix(pearsons)
+  rownames(pearsons) = rownames(log_top_var)
+  colnames(pearsons) = c("K27ac", "K4me1")
+  
+  # heatmaps
+  col_fun1 = colorRamp2(c(0, 2, 4), brewer.pal(n = 3, name = "Purples"))
+  top_hm = Heatmap(
+    log_top_var_h33,
+    column_title = "",
+    row_title = glue("Highest {name} H3K27ac (Yang et al) signals at enhancers"),
+    name = "H3.3 log2 read count",
+    # clustering_method_rows = "complete",
+    # clustering_method_columns = "complete",
+    col = col_fun1,
+    rect_gp = gpar(col = "black", lwd = 0.1),
+    show_column_dend = FALSE,
+    cluster_columns = FALSE,
+    cluster_rows = FALSE,
+    show_row_dend = TRUE,
+    show_row_names = FALSE,
+    heatmap_width = unit(2, "cm"),
+    heatmap_height = unit(15, "cm"),
+    row_names_gp = gpar(fontsize = 15),
+    column_names_gp = gpar(fontsize = 12),
+    column_title_gp = gpar(fontsize = 10),
+    column_names_rot = 90)
+  top_hm
+  
+  max = round(max(log_top_var))
+  min = round(min(log_top_var))
+  middle = mean(c(max, min))
+  col_fun2 = colorRamp2(c(min, middle, max), brewer.pal(n = 3, name = "Blues"))
+  top_k27ac_hm = Heatmap(
+    log_top_var,
+    column_title = "",
+    row_title = glue("Highest {name} H3K27ac (Yang et al) signals at enhancers"),
+    name = "H3K27ac log2 read count",
+    clustering_method_rows = "complete",
+    #clustering_method_columns = "complete",
+    col = col_fun2,
+    rect_gp = gpar(col = "black", lwd = 0.1),
+    show_column_dend = FALSE,
+    cluster_columns = FALSE,
+    cluster_rows = TRUE,
+    show_row_dend = TRUE,
+    show_row_names = FALSE,
+    heatmap_width = unit(4, "cm"),
+    heatmap_height = unit(15, "cm"),
+    row_names_gp = gpar(fontsize = 15),
+    column_names_gp = gpar(fontsize = 12),
+    column_title_gp = gpar(fontsize = 10),
+    column_names_rot = 90)
+  top_k27ac_hm
+  
+  max = round(max(log_top_var_k4me))
+  min = round(min(log_top_var_k4me))
+  middle = mean(c(max, min))
+  col_fun3 = colorRamp2(c(min, middle, max), brewer.pal(n = 3, name = "Greens"))
+  top_k4me1_hm = Heatmap(
+    log_top_var_k4me,
+    column_title = "",
+    row_title = glue("Highest {name} H3K27ac (Yang et al) signals at enhancers"),
+    name = "H3K4me1 log2 read count",
+    # clustering_method_rows = "complete",
+    # clustering_method_columns = "complete",
+    col = col_fun3,
+    rect_gp = gpar(col = "black", lwd = 0.1),
+    show_column_dend = FALSE,
+    cluster_columns = FALSE,
+    cluster_rows = FALSE,
+    show_row_dend = FALSE,
+    show_row_names = FALSE,
+    heatmap_width = unit(2, "cm"),
+    heatmap_height = unit(15, "cm"),
+    row_names_gp = gpar(fontsize = 15),
+    column_names_gp = gpar(fontsize = 12),
+    column_title_gp = gpar(fontsize = 10),
+    column_names_rot = 90)
+  top_k4me1_hm
+  
+  pearson_fun = colorRamp2(c(-1, 0, 1), c("#3182bd", "white", "#fc9272"))
+  pearsons_hm = Heatmap(
+    pearsons,
+    column_title = "",
+    row_title = glue("Pearson - between {name} and ChIP-Seq signals"),
+    name = "Pearson",
+    # clustering_method_rows = "complete",
+    # clustering_method_columns = "complete",
+    col = pearson_fun,
+    rect_gp = gpar(col = "black", lwd = 0.1),
+    show_column_dend = FALSE,
+    cluster_columns = FALSE,
+    cluster_rows = FALSE,
+    show_row_dend = FALSE,
+    show_row_names = FALSE,
+    heatmap_width = unit(1, "cm"),
+    heatmap_height = unit(15, "cm"),
+    row_names_gp = gpar(fontsize = 15),
+    column_names_gp = gpar(fontsize = 12),
+    column_title_gp = gpar(fontsize = 10),
+    column_names_rot = 90)
+  pearsons_hm
+  
+  # exporting
+  png(
+    file = glue("{result_folder}highest_Yang_EpiLC_K27ac_{name}_H3.3_enhancers-hm.png"),
+    width = 15,
+    height = 16,
+    units = 'cm',
+    res = 500
+  )
+  hms = top_k27ac_hm + top_hm + top_k4me1_hm + pearsons_hm
+  print(hms)
+  dev.off()
+  
+  pdf(
+    file = glue("{result_folder}highest_Yang_EpiLC_K27ac_{name}_H3.3_enhancers-hm.pdf"),
+    width = 7,
+    height = 7
+  )
+  hms = top_k27ac_hm + top_hm + top_k4me1_hm + pearsons_hm
+  print(hms)
+  dev.off()
+  
+}
+
+# loop through all H3.3 sciTIP-Seq bigwigs
+lapply(k27ac, heatmaps_of_top_k27ac)
+
+overlaps_with_cm = lapply(epilc_peaks, function(x) {
+  x = fread(x)
+  x = GRanges(
+    seqnames = x$V1,
+    ranges = IRanges(
+      start = x$V2,
+      end = x$V3,
+      names = x$V6
+    )
+  )
+  epilc_peak_cm_ol = findOverlaps(x, cm_orig_size, type = "any")
+  ol_perc = round(length(unique(queryHits(epilc_peak_cm_ol))) / length(unique(x)) * 100, 2)
+  return(ol_perc)
+})
+peak_lengths = lapply(epilc_peaks, function(x) {
+  x = fread(x)
+  x = as_tibble(x)
+  mean = x %>% mutate(diff = V3 - V2) %>% pull(diff) %>% mean
+  sd = x %>% mutate(diff = V3 - V2) %>% pull(diff) %>% sd
+  output = tibble(mean = mean, sd = sd)
+  return(output)
+})
+peak_lengths = rbindlist(peak_lengths)
+peak_lengths = peak_lengths %>% mutate(peak = epilc_peaks)
+
+
 

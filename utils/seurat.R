@@ -213,3 +213,240 @@ all_marker_analysis = FindAllMarkers(
   group.by = "sample",
   logfc.threshold = 0.1
 )
+
+# module scores based on k27ac clusters of EpiLC clusters
+# https://satijalab.org/seurat/reference/addmodulescore
+# source: Tirosh et al, Science (2016)
+# the module score represents relative expression (relative H3.3 occupancy). If bin A is highly expressed across all cells, 
+# the module scores assess whether a given cell expresses bin A more often than other highly expressed bins 
+# Therefore, if the module score is high, it indicates these bins have high h3.3. 
+# If the module score is low, it might mean that these bins have h3.3 but not more so than in other cells.
+k27ac_cluster2 = fread("../data/bed/Yang_EpiLC_K27ac_over_epilc_enh-kmeans-cluster2.bed")
+k27ac_cluster2 = GRanges(
+  seqnames = k27ac_cluster2$V1,
+  ranges = IRanges(
+    start = k27ac_cluster2$V2,
+    end = k27ac_cluster2$V3
+  )
+)
+k27ac_cluster1 = fread("../data/bed/Yang_EpiLC_K27ac_over_epilc_enh-kmeans-cluster1.bed")
+k27ac_cluster1 = GRanges(
+  seqnames = k27ac_cluster1$V1,
+  ranges = IRanges(
+    start = k27ac_cluster1$V2,
+    end = k27ac_cluster1$V3
+  )
+)
+
+bins = tibble(regions = rownames(seurat@assays$RNA@data)) %>% separate(., regions, sep = "-", into = c("V1", "V2", "V3")) %>% 
+  mutate(V2 = as.numeric(V2), V3 = as.numeric(V3))
+bins = GRanges(
+  seqnames = bins$V1,
+  ranges = IRanges(
+    start = bins$V2,
+    end = bins$V3
+  )
+)
+
+ol2 = findOverlaps(k27ac_cluster2, bins, type = "any", ignore.strand = FALSE)
+# intersection
+ol2 = bins[subjectHits(ol2)]
+ol2 = as_tibble(ol2)
+ol2 = ol2 %>% mutate(id = paste(seqnames, start, end, sep = "-")) %>% pull(id)
+
+seurat = AddModuleScore(
+  object = seurat,
+  features = list(sample(ol2, 500, replace = FALSE)),
+  name = "cluster2_modulescore",
+  seed = 1
+)
+meta = seurat@meta.data
+# seurat@meta.data = meta_modscore
+
+FeaturePlot(object = seurat, features = "cluster2_modulescore1", pt.size = 2, order = TRUE) +
+  xlim(-10, 10) + 
+  ylim(-10, 10) + 
+  labs(title = "late H3K27ac-ed enhancers", subtitle = "k-means cluster 2") +
+  guides(fill = guide_legend(title="module score")) +
+  scale_colour_gradient2(low = "#f0f0f0",
+                         mid = "#ffeda0",
+                         high = "#de2d26",
+                         midpoint = 0.075) +
+  theme(
+    text = element_text(size = 25),
+    plot.title = element_text(size = 20, hjust = 0),
+    plot.title.position = "plot",
+    axis.text.x = element_text(size = 25, color = "black"),
+    axis.text.y = element_text(size = 25, color = "black")
+  )
+
+ggsave(
+  glue("{result_folder}Seurat_H3.3-enhancer_module_scores-k27ac_cl2.png"),
+  plot = last_plot(),
+  width = 8,
+  height = 8,
+  dpi = 300,
+)
+
+ggsave(
+  glue("{result_folder}Seurat_H3.3-enhancer_module_scores-k27ac_cl2.pdf"),
+  plot = last_plot(),
+  width = 8,
+  height = 8,
+  device = "pdf"
+)
+
+
+ol1 = findOverlaps(k27ac_cluster1, bins, type = "any", ignore.strand = FALSE)
+# intersection
+ol1 = bins[subjectHits(ol1)]
+ol1 = as_tibble(ol1)
+ol1 = ol1 %>% mutate(id = paste(seqnames, start, end, sep = "-")) %>% pull(id)
+
+seurat = AddModuleScore(
+  object = seurat,
+  features = ol1,
+  name = "cluster1_modulescore",
+  seed = 1
+)
+meta = seurat@meta.data
+# seurat@meta.data = meta_modscore
+FeaturePlot(object = seurat, features = "cluster1_modulescore1", pt.size = 2, order = TRUE) +
+  xlim(-10, 10) + 
+  ylim(-10, 10) + 
+  labs(title = "early H3K27ac-ed enhancers", subtitle = "k-means cluster 1") +
+  guides(fill = guide_legend(title="module score")) +
+  scale_colour_gradient2(low = "#f0f0f0",
+                         mid = "#ffeda0",
+                         high = "#de2d26",
+                         midpoint = 0.075) +
+  theme(
+    text = element_text(size = 25),
+    plot.title = element_text(size = 20, hjust = 0),
+    plot.title.position = "plot",
+    axis.text.x = element_text(size = 25, color = "black"),
+    axis.text.y = element_text(size = 25, color = "black")
+  )
+
+ggsave(
+  glue("{result_folder}Seurat_H3.3-enhancer_module_scores-k27ac_cl1.png"),
+  plot = last_plot(),
+  width = 8,
+  height = 8,
+  dpi = 300,
+)
+
+ggsave(
+  glue("{result_folder}Seurat_H3.3-enhancer_module_scores-k27ac_cl1.pdf"),
+  plot = last_plot(),
+  width = 8,
+  height = 8,
+  device = "pdf"
+)
+
+object = seurat
+features = list(ol2)
+pool = rownames(object)
+nbin = 24
+ctrl = 100
+k = FALSE
+name = "cluster2"
+seed = 1
+cluster.length <- length(x = features)
+assay.data <- GetAssayData(object = object)
+# For all genes, get the average expression across all cells (named vector)
+data.avg <- Matrix::rowMeans(x = assay.data[pool, ])
+# Order genes from lowest average expression to highest average expression
+data.avg <- data.avg[order(data.avg)]
+# Use ggplot2's cut_number function to make n groups with (approximately) equal numbers of observations. 
+# The 'rnorm(n = length(data.avg))/1e+30' part adds a tiny bit of noise to the data, presumably to break ties.
+data.cut <- ggplot2::cut_number(x = data.avg + rnorm(n = length(data.avg))/1e+30,
+                                n = nbin,
+                                labels = FALSE,
+                                right = FALSE)
+# Set the names of the cuts as the gene names
+names(x = data.cut) <- names(x = data.avg)
+ctrl.use <- vector(mode = "list", length = cluster.length)
+for (i in 1:cluster.length) {
+  # Get the gene names from the input gene set as a character vector  
+  features.use <- features[[i]]
+  
+  # Loop through the provided genes (1:num_genes) and for each gene, find ctrl (default=100) genes from the same expression bin (by looking in data.cut):
+  for (j in 1:length(x = features.use)) {
+    # Within this loop, 'data.cut[features.use[j]]' gives us the expression bin number. We then sample `ctrl` genes from that bin without replacement and add the gene names to ctrl.use.
+    ctrl.use[[i]] <- c(ctrl.use[[i]],
+                       names(x = sample(x = data.cut[which(x = data.cut == data.cut[features.use[j]])],
+                                        size = ctrl,
+                                        replace = FALSE)))
+  }
+}
+
+pdf(
+  file = glue("{result_folder}H3.3_enhancer_module_score_plot-k27ac_cluster2.pdf"),
+  width = 6,
+  height = 6
+)
+plot(data.avg, pch=16, ylab="Average H3.3 level across all cells", xlab = "All bins, ranked")
+# Add red points for selected control genes
+points(which(names(data.avg)%in%ctrl.use[[1]]), data.avg[which(names(data.avg)%in%ctrl.use[[1]])], pch=16, col="#7fcdbb")
+
+# Add blue points for genes in the input gene list
+points(which(names(data.avg)%in%features[[1]]), data.avg[which(names(data.avg)%in%features[[1]])], pch=16, col="#de2d26")
+
+# Add a legend
+legend(x = "topleft",
+       legend = c("bin", "selected control bin", "bins overlap with K27ac cluster 2"),
+       col = c("black", "#de2d26", "#7fcdbb"),
+       pch = 16)
+dev.off()
+
+features = list(ol1)
+name = "cluster1"
+seed = 1
+cluster.length <- length(x = features)
+assay.data <- GetAssayData(object = object)
+# For all genes, get the average expression across all cells (named vector)
+data.avg <- Matrix::rowMeans(x = assay.data[pool, ])
+# Order genes from lowest average expression to highest average expression
+data.avg <- data.avg[order(data.avg)]
+# Use ggplot2's cut_number function to make n groups with (approximately) equal numbers of observations. 
+# The 'rnorm(n = length(data.avg))/1e+30' part adds a tiny bit of noise to the data, presumably to break ties.
+data.cut <- ggplot2::cut_number(x = data.avg + rnorm(n = length(data.avg))/1e+30,
+                                n = nbin,
+                                labels = FALSE,
+                                right = FALSE)
+# Set the names of the cuts as the gene names
+names(x = data.cut) <- names(x = data.avg)
+ctrl.use <- vector(mode = "list", length = cluster.length)
+for (i in 1:cluster.length) {
+  # Get the gene names from the input gene set as a character vector  
+  features.use <- features[[i]]
+  
+  # Loop through the provided genes (1:num_genes) and for each gene, find ctrl (default=100) genes from the same expression bin (by looking in data.cut):
+  for (j in 1:length(x = features.use)) {
+    # Within this loop, 'data.cut[features.use[j]]' gives us the expression bin number. We then sample `ctrl` genes from that bin without replacement and add the gene names to ctrl.use.
+    ctrl.use[[i]] <- c(ctrl.use[[i]],
+                       names(x = sample(x = data.cut[which(x = data.cut == data.cut[features.use[j]])],
+                                        size = ctrl,
+                                        replace = FALSE)))
+  }
+}
+
+pdf(
+  file = glue("{result_folder}H3.3_enhancer_module_score_plot-k27ac_cluster1.pdf"),
+  width = 6,
+  height = 6
+)
+plot(data.avg, pch=16, ylab="Average H3.3 level across all cells", xlab = "All bins, ranked")
+# Add red points for selected control genes
+points(which(names(data.avg)%in%ctrl.use[[1]]), data.avg[which(names(data.avg)%in%ctrl.use[[1]])], pch=16, col="#7fcdbb")
+
+# Add blue points for genes in the input gene list
+points(which(names(data.avg)%in%features[[1]]), data.avg[which(names(data.avg)%in%features[[1]])], pch=16, col="#de2d26")
+
+# Add a legend
+legend(x = "topleft",
+       legend = c("bin", "selected control bin", "bins overlap with K27ac cluster 1"),
+       col = c("black", "#de2d26", "#7fcdbb"),
+       pch = 16)
+dev.off()

@@ -1,12 +1,21 @@
 if (!require("pacman")) install.packages("pacman")
 pacman::p_load("tidyverse",
                "data.table",
-               "glue") 
+               "glue",
+               "viridis") 
 
+# result folder
+result_folder = "../results/bulk_RNA-Seq/"
+
+# Zhifen et al. (pluripotency gene set)
+zhifen = fread("../data/Zhifen_et_al-pluripotency_gene_families_Fig1D.txt", header = FALSE)
+
+# bulk RNA-Seq outputs
 stringtie_outputs = list.files("../data/bulk_RNA-Seq/Yang_et_al_EpiLC_GSE117896/stringtie_outputs/",
                                pattern = "*abundance*", full.names = TRUE)
 stringtie_folder = "../data/bulk_RNA-Seq/Yang_et_al_EpiLC_GSE117896/stringtie_outputs/"
 
+# collect expression levels
 collect_readcounts = function(stringtie_output) {
   colname = strsplit(stringtie_output, stringtie_folder)[[1]][2]
   colname = strsplit(colname, ".gene.abundance.txt")[[1]][1]
@@ -50,4 +59,67 @@ tpms = tpms %>% group_by(gene_name) %>% summarise(across(starts_with("TPM"), mea
 
 write_tsv(tpms, "../results/bulk_RNA-Seq/Yang_et_al-EpiLC_RNA-Seq_TPMs.tsv")
 
+### TPM levels of a list of genes
+# Yang et al. EpiLC RNA-Seq
+rnaseq_data = "../data/bulk_RNA-Seq/Yang_et_al_EpiLC_GSE117896/stringtie_outputs/"
+stringtie_outputs = list.files(rnaseq_data, full.names = TRUE, pattern = "*.gene.abundance")
+
+count_tables = lapply(stringtie_outputs, function(x) {
+  table = fread(x)
+  return(table %>% select(`Gene ID`, TPM))
+})
+
+extract_tpm = function(gene, timepoint) {
+  count_table = count_tables[grep(timepoint, x = stringtie_outputs)]
+  count_table = as_tibble(count_table[[1]])
+  count_table = count_table %>% filter(`Gene ID` == gene) %>% mutate(timepoint = timepoint)
+  return(count_table)
+}
+
+timepoints = c("1h", "6h", "12h", "24h", "36h", "48h", "72h")
+
+zhifen_tpms = lapply(timepoints, function(x) {
+  lapply(zhifen$V1, function(y)  {
+    extract_tpm(gene = y, timepoint = x)
+  })
+})
+zhifen_tpms = bind_rows(zhifen_tpms)
+zhifen_tpms = zhifen_tpms %>% mutate(`Gene ID` = str_replace(zhifen_tpms$`Gene ID`, "Pou5f1", "Oct4"))
+zhifen_tpms = zhifen_tpms %>% mutate(`Gene ID` = str_replace(zhifen_tpms$`Gene ID`, "Pou3f1", "Oct6"))
+zhifen_tpms = zhifen_tpms %>% mutate(`Gene ID` = str_replace(zhifen_tpms$`Gene ID`, "Pou2f3", "Oct11"))
+
+# heatmap
+y_order = zhifen_tpms %>% group_by(`Gene ID`) %>% summarise(sd = sd(TPM)) %>% arrange(sd) %>% pull(`Gene ID`) %>% unique
+y_order = factor(zhifen_tpms$`Gene ID`, levels = y_order) 
+x_order = factor(zhifen_tpms$timepoint, levels = timepoints)
+
+hm = ggplot(zhifen_tpms, aes(x = x_order, y = y_order, fill = log2(TPM+1))) +
+  geom_tile(color = "white",
+            lwd = 0.5,
+            linetype = 1) +
+  scale_fill_viridis(option = "magma") +
+  xlab(label = "") +
+  ylab(label = "") +
+  labs(fill = "log2(TPM)", title = "") +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(
+      color = "black",
+      size = 13,
+      angle = 90,
+      hjust = 1,
+      vjust = 0.5
+    ),
+    axis.text.y = element_text(color = "black", size = 10),
+    axis.title = element_text(size = 14)
+  ) +
+  coord_fixed()
+print(hm)
+
+ggsave(
+  glue("{result_folder}Zhifen_et_al-pluripotency_genes_TPMS.pdf"),
+  plot = hm,
+  width = 5,
+  height = 7
+)
 

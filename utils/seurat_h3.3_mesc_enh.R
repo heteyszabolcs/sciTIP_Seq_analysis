@@ -13,15 +13,13 @@ suppressPackageStartupMessages({
   library("ggpubr")
 })
 
-#library("DUBStepR")
-
 set.seed(42)
 
 # result folder
 result_folder = "../results/Seurat/"
 
 # create Seurat object
-raw = fread(file = "../data/20230510_EpiLC/count_tables/EpiLC_only_enhancers-H3.3_read_counts.tsv")
+raw = fread(file = "../data/20230510_EpiLC/count_tables/mESC_cm_only_enhancers-read_counts.tsv")
 raw = raw %>% mutate(range = paste(raw$`#'chr'`, raw$`'start'`, raw$`'end'`, sep = "_"))
 rows = raw$range
 raw = raw %>% dplyr::select(-range, -`#'chr'`, -`'start'`, -`'end'`) 
@@ -36,28 +34,26 @@ cols = lapply(cols, function(x) {
 })
 cols = unlist(cols)
 colnames(raw) = cols
-raw = as.matrix(raw)[,colSums(raw) > 100]
-raw = as.matrix(raw)[rowSums(raw) > 0,]
-rows = rownames(raw)
 raw_sparse = as(as.matrix(raw), "sparseMatrix")
 rownames(raw_sparse) = rows
 rownames(raw) = rows
 
-#enh_ranked = rownames(raw)[order(rowSums(raw), decreasing = TRUE)]
-#head(enh_ranked)
+enh_ranked = rownames(raw)[order(rowSums(raw), decreasing = TRUE)]
+head(enh_ranked)
 
 seurat = CreateSeuratObject(counts = raw_sparse, project = "EpiLC_enhancers")
- 
+
 # export Rds
-saveRDS(seurat, "../data/20230316_H3.2/count_tables/EpiLC_only_enhancers-H3.3.Rds")
+saveRDS(seurat, "../data/20230316_H3.2/count_tables/mESC_only_enhancers-H3.3.Rds")
 
 # load Seurat object
-seurat = readRDS(file = "../data/20230316_H3.2/count_tables/EpiLC_only_enhancers-H3.3.Rds")
+seurat = readRDS(file = "../data/20230316_H3.2/count_tables/mESC_only_enhancers-H3.3.Rds")
 
 # normalization
 seurat = RunTFIDF(seurat)
 seurat = FindTopFeatures(seurat, min.cutoff = 'q0')
 seurat = RunSVD(seurat)
+
 # Non-linear dimension reduction and clustering
 seurat = RunUMAP(object = seurat,
                  reduction = 'lsi',
@@ -74,48 +70,48 @@ seurat = FindClusters(object = seurat,
 my_comparison = list(c("0", "1"))
 nCount_violin_clusters = VlnPlot(seurat, group.by = "seurat_clusters", features = "nCount_RNA", pt.size = 0.1) +
   scale_fill_brewer(palette = "Set3") +
-  ggtitle("Number of H3.3 counts over EpiLC enhancers") +
-  ylim(0, 500) +
+  ggtitle("Number of H3.3 counts over mESC enhancers") +
+  scale_y_continuous(limits = c(0, 8000), breaks = seq(0, 8000, 2000)) +
   xlab("cluster") + 
   ylab("read count") +
   #ylim(0, 60000) +
   #scale_y_continuous(breaks = seq(0, 1000, 200)) +
   theme(
     text = element_text(size = 25),
-    plot.title = element_text(size = 10),
+    plot.title = element_text(size = 20),
     axis.text.x = element_text(size = 25, color = "black", angle = 0),
     axis.text.y = element_text(size = 25, color = "black")
   ) +
   NoLegend() +
   stat_compare_means(comparisons = my_comparison, label = "p.signif", method = "t.test",
-                     ref.group = ".all.", label.y = 300, tip.length = 0.05,
+                     ref.group = ".all.", label.y = 7400, tip.length = 0.05,
                      bracket.nudge.y = -12, step.increase = 0.8)
 
 nCount_violin_clusters
 
-# ggsave(
-#   glue("{result_folder}nCount_over_EpiLC_enh-violins.png"),
-#   plot = nCount_violin_clusters,
-#   width = 7,
-#   height = 7,
-#   dpi = 300,
-# )
+ggsave(
+  glue("{result_folder}nCount_over_mESC_enh-violins.png"),
+  plot = nCount_violin_clusters,
+  width = 7,
+  height = 7,
+  dpi = 300,
+)
 
-# ggsave(
-#   glue("{result_folder}nCount_over_EpiLC_enh-violins.pdf"),
-#   plot = nCount_violin_clusters,
-#   width = 7,
-#   height = 7,
-#   device = "pdf"
-# )
+ggsave(
+  glue("{result_folder}nCount_over_mESC_enh-violins.pdf"),
+  plot = nCount_violin_clusters,
+  width = 7,
+  height = 7,
+  device = "pdf"
+)
 
-# cluster1 = seurat@meta.data %>% filter(seurat_clusters == 1)
-# cluster1 = tibble("cells_with_H3.3_over_EpiLC_enhancers" = rownames(cluster1))
-# write_tsv(cluster1, glue("{result_folder}cells_with_H3.3_over_EpiLC_enhancers.tsv"))
-# cluster1_highcount = seurat@meta.data %>% filter(seurat_clusters == 1) %>% 
-#   filter(nCount_RNA >= quantile(nCount_RNA, .75))
-# cluster1_highcount = tibble("cells_with_highH3.3_over_EpiLC_enhancers" = rownames(cluster1_highcount))
-# write_tsv(cluster1_highcount, glue("{result_folder}cells_with_highH3.3_over_EpiLC_enhancers.tsv"))
+cluster1 = seurat@meta.data %>% filter(seurat_clusters == 1)
+cluster1 = tibble("cells_with_H3.3_over_mESC_enhancers" = rownames(cluster1))
+write_tsv(cluster1, glue("{result_folder}cells_with_H3.3_over_mESC_enhancers.tsv"))
+cluster1_highcount = seurat@meta.data %>% filter(seurat_clusters == 1) %>% 
+  filter(nCount_RNA >= quantile(nCount_RNA, .75))
+cluster1_highcount = tibble("cells_with_highH3.3_over_mESC_enhancers" = rownames(cluster1_highcount))
+write_tsv(cluster1_highcount, glue("{result_folder}cells_with_highH3.3_over_mESC_enhancers.tsv"))
 
 # visualizations
 dim = DimPlot(object = seurat, label = FALSE, pt.size = 2, label.size = 7) + 
@@ -125,7 +121,7 @@ dim = DimPlot(object = seurat, label = FALSE, pt.size = 2, label.size = 7) +
   ggtitle("H3.3 sciTIP-Seq") +
   theme(
     text = element_text(size = 25),
-    plot.title = element_text(size = 10),
+    plot.title = element_text(size = 20),
     axis.text.x = element_text(size = 25, color = "black"),
     axis.text.y = element_text(size = 25, color = "black")
   )
@@ -147,42 +143,22 @@ seurat@meta.data$sample <- factor(seurat@meta.data$sample, levels = c("EpiLC_6h"
 # quality plots
 nCount_violin_samples = VlnPlot(seurat, group.by = "sample", features = "nCount_RNA", pt.size = 0.1) +
   scale_fill_brewer(palette = "Set3") +
-  ggtitle("read counts at EpiLC enhancers") +
+  ggtitle("read counts at mESC enhancers") +
   xlab("sample") + 
   ylab("read count") + 
   #ylim(0, 100) +
-  scale_y_continuous(breaks = seq(0, 1000, 50)) +
+  scale_y_continuous(limits = c(0, 8000), breaks = seq(0, 8000, 2000)) +
   theme(
     text = element_text(size = 25),
-    plot.title = element_text(size = 10),
+    plot.title = element_text(size = 20),
     axis.text.x = element_text(size = 14, color = "black", angle = 0, hjust = 0.5),
     axis.text.y = element_text(size = 25, color = "black")
   ) +
   NoLegend() +
   stat_compare_means(label = "p.signif", method = "t.test",
-                     ref.group = ".all.", label.y = 250, tip.length = 0.05,
+                     ref.group = ".all.", label.y = 7500, tip.length = 0.05,
                      bracket.nudge.y = -12, step.increase = 0.8)
 nCount_violin_samples
-
-ggsave(
-  glue(
-    "{result_folder}nCount_over_EpiLC_enh-filtered_cells-violins.png"
-  ),
-  plot = nCount_violin_samples,
-  width = 7,
-  height = 7,
-  dpi = 300,
-)
-
-ggsave(
-  glue(
-    "{result_folder}nCount_over_EpiLC_enh-filtered_cells-violins.pdf"
-  ),
-  plot = nCount_violin_samples,
-  width = 7,
-  height = 7,
-  device = "pdf"
-)
 
 dim_samples = DimPlot(object = seurat, label = FALSE, pt.size = 2, group.by = "sample") + 
   scale_color_brewer(palette = "Set3") +
@@ -213,28 +189,28 @@ dim_samples
 #   device = "pdf"
 # )
 
-#dims = ggarrange(dim, dim_samples)
+dims = ggarrange(dim, dim_samples)
 
-# ggsave(
-#   glue("{result_folder}Seurat_H3.3_sciTIP_0510-UMAPs.png"),
-#   plot = dims,
-#   width = 12,
-#   height = 5,
-#   dpi = 300,
-# )
-# 
-# ggsave(
-#   glue("{result_folder}Seurat_H3.3_sciTIP_0510-UMAPs.pdf"),
-#   plot = dims,
-#   width = 12,
-#   height = 5,
-#   device = "pdf"
-# )
+ggsave(
+  glue("{result_folder}Seurat_H3.3_sciTIP_0510-UMAPs.png"),
+  plot = dims,
+  width = 12,
+  height = 5,
+  dpi = 300,
+)
+
+ggsave(
+  glue("{result_folder}Seurat_H3.3_sciTIP_0510-UMAPs.pdf"),
+  plot = dims,
+  width = 12,
+  height = 5,
+  device = "pdf"
+)
 
 violins = ggarrange(nCount_violin_clusters, nCount_violin_samples)
 
 ggsave(
-  glue("{result_folder}Seurat_H3.3_sciTIP_0510-qplot-filtered_cells-EpiLC_enhancers.png"),
+  glue("{result_folder}Seurat_H3.3_sciTIP_0510-quality_plots-mESCenhancers.png"),
   plot = violins,
   width = 12,
   height = 5,
@@ -242,7 +218,7 @@ ggsave(
 )
 
 ggsave(
-  glue("{result_folder}Seurat_H3.3_sciTIP_0510-qplot-filtered_cells-EpiLC_enhancers.pdf"),
+  glue("{result_folder}Seurat_H3.3_sciTIP_0510-quality_plots-mESCenhancers.pdf"),
   plot = violins,
   width = 12,
   height = 5,

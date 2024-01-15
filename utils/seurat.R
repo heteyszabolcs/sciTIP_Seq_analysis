@@ -13,6 +13,10 @@ suppressPackageStartupMessages({
 
 set.seed(42)
 
+# EpiLC enhancer related cell ids
+ids = fread("../results/Seurat/cells_with_H3.3_over_EpiLC_enhancers.tsv")
+ids2 = fread("../results/Seurat/cells_with_highH3.3_over_EpiLC_enhancers.tsv")
+
 # result folder
 result_folder = "../results/Seurat/"
 
@@ -33,6 +37,15 @@ seurat = readRDS(file = "../data/20230510_EpiLC/count_tables/20230510_EpiLC_read
 
 # normalization
 seurat = RunTFIDF(seurat)
+
+# dubstepR.out = DUBStepR(input.data = seurat@assays$RNA@data, 
+#                         min.cells = 0.05*ncol(seurat), 
+#                         optimise.features = T, 
+#                         k = 10, 
+#                         species = "mouse",
+#                         num.pcs = 20, error = 0)
+# seurat@assays$RNA@var.features = dubstepR.out$optimal.feature.genes
+
 seurat = FindTopFeatures(seurat, min.cutoff = 'q0')
 seurat = RunSVD(seurat)
 
@@ -48,7 +61,9 @@ seurat = FindClusters(object = seurat,
                          resolution = 0.5,
                          algorithm = 3)
 
-x = seurat@meta.data
+FeaturePlot(seurat, 
+            features = dubstepR.out$optimal.feature.genes, 
+            cols = c("lightgrey", "magenta"))
 
 # quality plots
 nCount_violin_clusters = VlnPlot(seurat, group.by = "seurat_clusters", features = "nCount_RNA", pt.size = 0.1) +
@@ -212,6 +227,76 @@ all_marker_analysis = FindAllMarkers(
   test.use = "roc",
   group.by = "sample",
   logfc.threshold = 0.1
+)
+
+# cells with H3.3 occupied EpiLC spec. enhancers
+ids = ids$cells_with_H3.3_over_EpiLC_enhancers
+ids = paste0(ids, "_L001_R1_001.fastq")
+
+DimPlot(
+  object = seurat,
+  pt.size = 2,
+  cells.highlight = ids,
+  cols.highlight = "red",
+  cols = "gray",
+  order = TRUE
+) +
+  xlim(-10, 10) +
+  ylim(-10, 10) +
+  scale_color_manual(
+    values = c("#bdbdbd", "#de2d26"),
+    labels = c("cells with H3.3-less EpiLC enhancers", "cells with H3.3 EpiLC enhancers")
+  ) 
+
+ggsave(
+  glue("{result_folder}cells_w_H3.3EpiLC_enh-UMAP.png"),
+  plot = last_plot(),
+  width = 10,
+  height = 10,
+  dpi = 300
+)
+
+ggsave(
+  glue("{result_folder}cells_w_H3.3EpiLC_enh-UMAP.pdf"),
+  plot = last_plot(),
+  width = 10,
+  height = 10,
+  device = "pdf"
+)
+
+# cells with high H3.3 occupied EpiLC spec. enhancers
+ids2 = ids2$cells_with_highH3.3_over_EpiLC_enhancers
+ids2 = paste0(ids2, "_L001_R1_001.fastq")
+
+DimPlot(
+  object = seurat,
+  pt.size = 2,
+  cells.highlight = ids2,
+  cols.highlight = "red",
+  cols = "gray",
+  order = TRUE
+) +
+  xlim(-10, 10) +
+  ylim(-10, 10) +
+  scale_color_manual(
+    values = c("#bdbdbd", "#de2d26"),
+    labels = c("cells with low/zero H3.3 EpiLC enhancers", "cells with high H3.3 EpiLC enhancers")
+  ) 
+
+ggsave(
+  glue("{result_folder}cells_w_highH3.3EpiLC_enh-UMAP.png"),
+  plot = last_plot(),
+  width = 10,
+  height = 10,
+  dpi = 300
+)
+
+ggsave(
+  glue("{result_folder}cells_w_highH3.3EpiLC_enh-UMAP.pdf"),
+  plot = last_plot(),
+  width = 10,
+  height = 10,
+  device = "pdf"
 )
 
 # module scores based on k27ac clusters of EpiLC clusters
